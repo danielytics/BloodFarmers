@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.12)
 
 # Project Configuration
-project(BloodFarm VERSION 1.0.0 LANGUAGES CXX)
+project(BloodFarm VERSION 1.0.0 LANGUAGES CXX C)
 
 # Detect compiler
 if ("${CMAKE_CXX_COMPILER_ID}" MATCHES "Clang")
@@ -19,10 +19,6 @@ elseif ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "MSVC")
 endif()
 
 # Dependencies that get included into projects sources directly
-set(DEPENDENCY_INCLUDED_SOURCES
-
-)
-
 add_library(FastNoiseSIMD OBJECT
     deps/FastNoiseSIMD/FastNoiseSIMD/FastNoiseSIMD_sse41.cpp
     deps/FastNoiseSIMD/FastNoiseSIMD/FastNoiseSIMD_internal.cpp
@@ -31,9 +27,36 @@ add_library(FastNoiseSIMD OBJECT
     deps/FastNoiseSIMD/FastNoiseSIMD/FastNoiseSIMD_avx2.cpp
 )
 
+set(PHYSICSFS_SOURCES
+    deps/physfs/src/physfs.c
+    deps/physfs/src/physfs_archiver_7z.c
+    deps/physfs/src/physfs_archiver_dir.c
+    deps/physfs/src/physfs_archiver_grp.c
+    deps/physfs/src/physfs_archiver_hog.c
+    deps/physfs/src/physfs_archiver_iso9660.c
+    deps/physfs/src/physfs_archiver_mvl.c
+    deps/physfs/src/physfs_archiver_qpak.c
+    deps/physfs/src/physfs_archiver_slb.c
+    deps/physfs/src/physfs_archiver_unpacked.c
+    deps/physfs/src/physfs_archiver_vdf.c
+    deps/physfs/src/physfs_archiver_wad.c
+    deps/physfs/src/physfs_archiver_zip.c
+    deps/physfs/src/physfs_byteorder.c
+    deps/physfs/src/physfs_miniz.h
+    deps/physfs/src/physfs_platform_apple.m
+    deps/physfs/src/physfs_platform_haiku.cpp
+    deps/physfs/src/physfs_platform_os2.c
+    deps/physfs/src/physfs_platform_posix.c
+    deps/physfs/src/physfs_platform_qnx.c
+    deps/physfs/src/physfs_platform_unix.c
+    deps/physfs/src/physfs_platform_windows.c
+    deps/physfs/src/physfs_platform_winrt.cpp
+    deps/physfs/src/physfs_unicode.c
+)
+
 # Sources
 set(SOURCES
-    ${DEPENDENCY_INCLUDED_SOURCES}
+    ${PHYSICSFS_SOURCES}
     src/main.cpp
     src/shader.cpp
     src/logging.cpp
@@ -41,7 +64,7 @@ set(SOURCES
 
 add_executable(BloodFarm ${SOURCES} $<TARGET_OBJECTS:FastNoiseSIMD>)
 
-# Package dependencies
+# Packaged dependencies
 
 find_package (SDL2)
 if (SDL2_FOUND)
@@ -55,13 +78,28 @@ if (GLEW_FOUND)
     target_link_libraries(BloodFarm ${GLEW_LIBRARIES})
 endif()
 
-add_subdirectory(deps/spdlog)
-target_include_directories (spdlog INTERFACE $<BUILD_INTERFACE:${SPDLOG_SOURCE_DIR}/include>)
-target_link_libraries(BloodFarm spdlog)
-
-
 # Included dependencies
 
+add_subdirectory(deps/cpptoml)
+target_include_directories (cpptoml INTERFACE $<BUILD_INTERFACE:${CPPTOML_SOURCE_DIR}/include>)
+target_link_libraries(BloodFarm cpptoml)
+
+target_include_directories(BloodFarm
+    PRIVATE 
+        # Project include files
+        ${PROJECT_SOURCE_DIR}/include
+        # Source dependencies' includes
+        ${PROJECT_SOURCE_DIR}/deps/FastNoiseSIMD/FastNoiseSIMD
+        ${PROJECT_SOURCE_DIR}/deps/physfs/src # Includes the header file...
+
+        # Include header-only dependencies
+        ${PROJECT_SOURCE_DIR}/deps/stb
+        ${PROJECT_SOURCE_DIR}/deps/spdlog/include
+        ${PROJECT_SOURCE_DIR}/deps/EnTT/src
+        ${PROJECT_SOURCE_DIR}/deps/glm
+        ${PROJECT_SOURCE_DIR}/deps/semimap
+        ${PROJECT_SOURCE_DIR}/deps/physfs-cpp/include 
+)
 
 if(NOT CMAKE_BUILD_TYPE)
     set(CMAKE_BUILD_TYPE Debug)
@@ -78,14 +116,6 @@ message("* Copyright (c) 2018 ${PROJECT_AUTHOR} <${PROJECT_AUTHOR_EMAIL}>")
 message("*")
 
 option(USE_ASAN "Use address sanitizer by adding -fsanitize=address -fno-omit-frame-pointer flags" OFF)
-
-target_include_directories(BloodFarm
-    PRIVATE 
-        ${PROJECT_SOURCE_DIR}/include
-        ${PROJECT_SOURCE_DIR}/deps/FastNoiseSIMD/FastNoiseSIMD
-        ${PROJECT_SOURCE_DIR}/deps/glm-0.9.7.4/include
-        ${PROJECT_SOURCE_DIR}/deps/cpptoml/include
-)
 
 if(USE_ASAN)
     target_compile_options(BloodFarm PUBLIC $<$<AND:$<CONFIG:Debug>,$<NOT:$<CXX_COMPILER_ID:MSVC>>>:-fsanitize=address -fno-omit-frame-pointer>)
@@ -112,6 +142,13 @@ else()
        target_compile_options(BloodFarm PUBLIC -ffp-contract=fast)
        target_compile_options(FastNoiseSIMD PUBLIC -ffp-contract=fast)
     endif()
+endif()
+if(APPLE)
+    # Foundation and IOKit are needed by PhysicsFS on OSX
+    target_link_libraries(BloodFarm
+        "-framework Foundation"
+        "-framework IOKit"
+    )
 endif()
 
 target_compile_options(BloodFarm PUBLIC -Werror)

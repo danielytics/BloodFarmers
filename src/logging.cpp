@@ -1,20 +1,21 @@
 
 #include "logging.h"
+#include <map>
+
+#include <spdlog/sinks/stdout_color_sinks.h>
+
 // #include "util/Profiling.h"
 
 // #ifdef DEBUG_BUILD
 // bool Profile::profiling_enabled;
 // #endif
 
-std::shared_ptr<spdlog::logger> logging::logger;
-
 void logging::init () {
     // Async logging in release mode, sync logging in debug mode
     // In a debug build, we want to make sure everything gets logged before a crash
     // In a release build, we would like things to be logged, but performance is more important
 #ifndef DEBUG_BUILD
-    size_t q_size = 8192; //queue size must be power of 2
-    spdlog::set_async_mode(q_size);
+    // TODO: Async logging...
 #endif
     std::string log_level {"info"};
     // bool profiling = false;
@@ -37,7 +38,6 @@ void logging::init () {
     // TODO: Error checking for invalid values of log_level
     spdlog::level::level_enum level = log_levels[log_level];
     spdlog::set_level(level);
-    logging::logger = spdlog::stdout_logger_mt("console", true /*use color*/);
     spdlog::set_pattern("%l [%D %H/%M/%S:%f] %v");
     if (level != spdlog::level::off) {
         info("Logging with level '{}'", log_level);

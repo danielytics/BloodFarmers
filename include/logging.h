@@ -7,13 +7,11 @@
 namespace logging {
     void init ();
     void term ();
-
-    extern std::shared_ptr<spdlog::logger> logger;
 }
 
-#define LOG_FILELINE_FMT "({}:{}:{}) "
+#define LOG_FILELINE_FMT_ "({}:{}:{}) "
 
-#define LOG_(L, fmt, ...) logging::logger->L(LOG_FILELINE_FMT fmt, __FILE__, __LINE__, __FUNCTION__, ##__VA_ARGS__)
+#define LOG_(L, fmt, ...) spdlog::L(LOG_FILELINE_FMT_ fmt, __FILE__, __LINE__, __FUNCTION__, ##__VA_ARGS__)
 
 #ifdef SPDLOG_TRACE_ON
 #define trace(...) LOG_(trace, __VA_ARGS__)
