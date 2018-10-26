@@ -1,0 +1,33 @@
+[submodule "deps/FastNoiseSIMD"]
+	path = deps/FastNoiseSIMD
+	url = git@github.com:Auburns/FastNoiseSIMD.git
+[submodule "deps/semimap"]
+	path = deps/semimap
+	url = git@github.com:hogliux/semimap.git
+[submodule "deps/spdlog"]
+	path = deps/spdlog
+	url = git@github.com:gabime/spdlog.git
+[submodule "deps/entt"]
+	path = deps/entt
+	url = git@github.com:skypjack/entt.git
+[submodule "deps/cpptoml"]
+	path = deps/cpptoml
+	url = git@github.com:skystrife/cpptoml.git
+[submodule "deps/physfs-cpp"]
+	path = deps/physfs-cpp
+	url = git@github.com:kahowell/physfs-cpp.git
+[submodule "deps/dynamiclinker"]
+	path = deps/dynamiclinker
+	url = git@github.com:Marqin/dynamicLinker.git
+[submodule "deps/glm"]
+	path = deps/glm
+	url = git@github.com:g-truc/glm.git
+[submodule "deps/Catch2"]
+	path = deps/Catch2
+	url = git@github.com:catchorg/Catch2.git
+[submodule "deps/physfs"]
+	path = deps/physfs
+	url = git@github.com:criptych/physfs.git
+[submodule "deps/LuaJIT"]
+	path = deps/LuaJIT
+	url = git@github.com:LuaJIT/LuaJIT.git
