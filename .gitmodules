@@ -28,3 +28,6 @@
 [submodule "deps/physfs-hpp"]
 	path = deps/physfs-hpp
 	url = git@github.com:Ybalrid/physfs-hpp.git
+[submodule "deps/bullet3"]
+	path = deps/bullet3
+	url = git@github.com:bulletphysics/bullet3.git

@@ -1,14 +1,12 @@
 
-#include "logging.h"
+#include "util/logging.h"
 #include <map>
 
 #include <spdlog/sinks/stdout_color_sinks.h>
 
-// #include "util/Profiling.h"
-
-// #ifdef DEBUG_BUILD
-// bool Profile::profiling_enabled;
-// #endif
+#ifdef DEBUG_BUILD
+bool tracing::profiling_enabled = false;;
+#endif
 
 void logging::init () {
     // Async logging in release mode, sync logging in debug mode

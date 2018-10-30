@@ -20,24 +20,50 @@ Boost Software License
 * [dynamiclinker](https://github.com/Marqin/dynamicLinker) - portable dynamic library loader (MIT License)
 * [stb_image](https://github.com/nothings/stb) - Image loader (Public domain)
 * [semimap](https://github.com/hogliux/semimap) - A semi compile-/run-time associative map container (MIT License)
+* [Bullet Physics](https://github.com/bulletphysics/bullet3) - Physics engine (zlib license)
 
 All of the dependencies, except for SDL2, GLEW and OpenGL come packaged as git submodules within this repository, in the `deps` directory.
 
 # Building
 
-First, make sure you have SDL2 and GLEW installed. Then clone and build this repo:
+Make sure you have SDL2 and GLEW installed and clone the BloodFarm repository:
 
 ```
 git clone git@github.com:danielytics/BloodFarm.git
-cd BloodFarm/build
+cd BloodFarm
+git submodule update --init
+``` 
+
+You then need to compile and install Bullet:
+
+```
+cd deps/bullet3/build3
+cmake ..
+make install
+cd ../../..
+```
+
+Finally, build this repository:
+
+```
+cd build
 cmake ..
 make
 ```
 
-You can now run the `BloodFarm` binary from the project root. Note that it will fail on startup if the data files are not found in the `data` directory or `game.data` file.
+You can now run the `BloodFarm` binary from the project root.
+
+Note that it will fail on startup if the data files are not found in the `data` directory or `game.data` file. You can override this to load the sample game:
+
+```
+./BloodFarm --load sample
+```
+
+You can find the sample game files in `sample/`:
+* `sample/sample.toml` contains the sample game configuration, used to bootstrap the game.
 
 # License
 
 The Blood Farm game source is released under the terms of the [MIT License](https://github.com/danielytics/BloodFarm/blob/master/LICENSE).
 
-The game data files are not released under a permissive license as many of them are copyrighted and while I have the rights to package them with a completed product, I do not have the rights to redistribute them for general use.
+The game data files are not included under this license and you must have a valid license in order to run the complete BloodFarm game. The sample game (found in the `sample/`) directory is released under the terms of the MIT License and can be used as an example of how the engine works and a basis for your own games.

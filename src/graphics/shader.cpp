@@ -1,6 +1,7 @@
 
-#include "shader.h"
-#include "logging.h"
+#include "graphics/shader.h"
+#include "util/logging.h"
+#include "util/helpers.h"
 
 #include <fstream>
 #include <iostream>
@@ -41,7 +42,7 @@ GLuint compileAndAttach (GLuint shaderProgram, GLenum programType, const std::st
     return program;
 }
 
-shader::shader createShader (const std::string& vertexShaderFilename, const std::string& vertexShader, const std::string& fragmentShaderFilename, const std::string& fragmentShader)
+graphics::shader_t createShader (const std::string& vertexShaderFilename, const std::string& vertexShader, const std::string& fragmentShaderFilename, const std::string& fragmentShader)
 {
     GLuint shaderProgram = glCreateProgram();
 
@@ -72,16 +73,13 @@ shader::shader createShader (const std::string& vertexShaderFilename, const std:
     return {shaderProgram, vertexProgram, fragmentProgram};
 }
 
-shader::shader shader::load (const std::string& vertexShaderFilename, const std::string& fragmentShaderFilename) {
-    std::ifstream vertexShaderFile { vertexShaderFilename };
-    std::string vertexShaderSource { std::istreambuf_iterator<char>(vertexShaderFile), std::istreambuf_iterator<char>() };
-    std::ifstream fragmentShaderFile { fragmentShaderFilename };
-    std::string fragmentShaderSource { std::istreambuf_iterator<char>(fragmentShaderFile), std::istreambuf_iterator<char>() };
-    return createShader(vertexShaderFilename, vertexShaderSource, fragmentShaderFilename, fragmentShaderSource);
+graphics::shader_t shaders::load (const std::string& vertexShaderFilename, const std::string& fragmentShaderFilename) {
+    return createShader(vertexShaderFilename, helpers::readToString(vertexShaderFilename),
+                        fragmentShaderFilename, helpers::readToString(fragmentShaderFilename));
 }
 
 
-void shader::shader::unload () const
+void graphics::shader_t::unload () const
 {
     glUseProgram(0);
     glDetachShader(programID, vertexProgram);
@@ -91,13 +89,13 @@ void shader::shader::unload () const
     glDeleteShader(fragmentProgram);
 }
 
-void shader::shader::bindUnfiromBlock(const std::string& blockName, unsigned int bindingPoint) const
+void graphics::shader_t::bindUnfiromBlock(const std::string& blockName, unsigned int bindingPoint) const
 {
     GLuint location = glGetUniformBlockIndex(programID, blockName.c_str());
     glUniformBlockBinding(programID, location, bindingPoint);
 }
 
-Uniform_t shader::shader::uniform(const std::string& name) const
+graphics::uniform_t graphics::shader_t::uniform(const std::string& name) const
 {
     return glGetUniformLocation(programID, name.c_str());
 }

@@ -58,8 +58,10 @@ set(PHYSICSFS_SOURCES
 set(SOURCES
     ${PHYSICSFS_SOURCES}
     src/main.cpp
-    src/shader.cpp
-    src/logging.cpp
+    src/graphics/shader.cpp
+    src/graphics/textures.cpp
+    src/util/logging.cpp
+    src/util/helpers.cpp
 )
 
 add_executable(BloodFarm ${SOURCES} $<TARGET_OBJECTS:FastNoiseSIMD>)
@@ -77,7 +79,11 @@ if (GLEW_FOUND)
     include_directories(${GLEW_INCLUDE_DIRS})
     target_link_libraries(BloodFarm ${GLEW_LIBRARIES})
 endif()
-
+find_package(BULLET REQUIRED)
+if (BULLET_FOUND)
+    include_directories(${BULLET_INCLUDE_DIRS})
+    target_link_libraries(BloodFarm ${BULLET_LIBRARIES})
+endif()
 # Included dependencies
 
 add_subdirectory(deps/cpptoml)
@@ -98,12 +104,16 @@ target_include_directories(BloodFarm
         ${PROJECT_SOURCE_DIR}/deps/EnTT/src
         ${PROJECT_SOURCE_DIR}/deps/glm
         ${PROJECT_SOURCE_DIR}/deps/semimap
-        ${PROJECT_SOURCE_DIR}/deps/physfs-cpp/include 
+        ${PROJECT_SOURCE_DIR}/deps/physfs-hpp/include 
 )
 
 if(NOT CMAKE_BUILD_TYPE)
     set(CMAKE_BUILD_TYPE Debug)
 endif()
+target_compile_definitions(BloodFarm PUBLIC $<$<CONFIG:DEBUG>:DEBUG_BUILD>)
+target_compile_definitions(BloodFarm PUBLIC $<$<CONFIG:DEBUG>:SPDLOG_DEBUG_ON>)
+target_compile_definitions(BloodFarm PUBLIC $<$<CONFIG:DEBUG>:SPDLOG_TRACE_ON>)
+
 
 set(SETTINGS_ORGANIZATION "Dan Kersten")
 set(SETTINGS_APPLICATION ${PROJECT_NAME})
@@ -148,10 +158,11 @@ if(APPLE)
     target_link_libraries(BloodFarm
         "-framework Foundation"
         "-framework IOKit"
+        "-framework OpenGL"
     )
 endif()
 
-target_compile_options(BloodFarm PUBLIC -Werror)
+#target_compile_options(BloodFarm PUBLIC -Werror)
 target_compile_features(BloodFarm PRIVATE cxx_std_17)
 
 target_compile_features(FastNoiseSIMD PRIVATE cxx_std_11)
