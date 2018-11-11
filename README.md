@@ -4,7 +4,8 @@ A game.
 
 # Dependencies
 
-Boost Software License
+Engine dependencies:
+
 * OpenGL 4.1
 * [EnTT](https://github.com/skypjack/entt) - Entity Component System (MIT License)
 * [SDL2](http://libsdl.org/) - Windowing & Input (ZLIB License)
@@ -21,6 +22,10 @@ Boost Software License
 * [stb_image](https://github.com/nothings/stb) - Image loader (Public domain)
 * [semimap](https://github.com/hogliux/semimap) - A semi compile-/run-time associative map container (MIT License)
 * [Bullet Physics](https://github.com/bulletphysics/bullet3) - Physics engine (zlib license)
+
+Tooling dependencies:
+
+* [Assimp](http://assimp.org/) - Asset importer (BSD License)
 
 All of the dependencies, except for SDL2, GLEW and OpenGL come packaged as git submodules within this repository, in the `deps` directory.
 
