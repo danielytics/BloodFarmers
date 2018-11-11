@@ -45,27 +45,36 @@ GLuint textures::load (const std::string& filename)
     }
     return texture;
 }
+struct Image
+{
+    int width;
+    int height;
+    int components;
+    unsigned char* data;
+};
+
 
 GLuint textures::loadArray (const std::vector<std::string>& filenames)
 {
     trace_fn();
     GLuint texture = 0;
-    int width=0, height=0;
-    int components = 0;
+    int max_width = 0;
+    int max_height = 0;
+    int max_components = 0;
     // Load the image files
-    auto images = std::vector<unsigned char*>{};
+    auto images = std::vector<Image>{};
     for (auto filename : filenames) {
         int w, h, c;
         std::string buffer = helpers::readToString(filename);
         unsigned char* image = stbi_load_from_memory(reinterpret_cast<const unsigned char*>(buffer.c_str()), int(buffer.size()), &w, &h, &c, STBI_rgb_alpha);
         info("Loaded image '{}', width={} height={} components={}", filename, w, h, c);
-        images.push_back(image);
-        width = std::max(w, width);
-        height = std::max(h, height);
-        components = std::max(c, components);
+        images.push_back({w, h, c, image});
+        max_width = std::max(w, max_width);
+        max_height = std::max(h, max_height);
+        max_components = std::max(c, max_components);
     }
     GLenum format = 0;
-    switch (components) { // Assume all textures have the same input format
+    switch (max_components) { // Use the largest components for the texture array format
     case 1:
         format = GL_RED;
         break;
@@ -80,19 +89,30 @@ GLuint textures::loadArray (const std::vector<std::string>& filenames)
     // Create the texture array
     glGenTextures(1, &texture);
     glBindTexture(GL_TEXTURE_2D_ARRAY, texture);
-    glTexImage3D(GL_TEXTURE_2D_ARRAY, 0, GLint(format),  width, height, images.size(), 0, format, GL_UNSIGNED_BYTE, nullptr);
+    glTexImage3D(GL_TEXTURE_2D_ARRAY, 0, GLint(format),  max_width, max_height, images.size(), 0, format, GL_UNSIGNED_BYTE, nullptr);
 
     // Load texture data into texture array
     for (unsigned index = 0; index < images.size(); ++index) {
         auto image = images[index];
-        glTexSubImage3D(GL_TEXTURE_2D_ARRAY, 0, 0, 0, index, width, height, 1, format, GL_UNSIGNED_BYTE, image);
-        stbi_image_free(image);
+        switch (image.components) { // Load individual images based on their own formats
+        case 1:
+            format = GL_RED;
+            break;
+        case 3:
+            format = GL_RGB;
+            break;
+        case 4:
+            format = GL_RGBA;
+            break;
+        }
+        glTexSubImage3D(GL_TEXTURE_2D_ARRAY, 0, 0, 0, index, image.width, image.height, 1, format, GL_UNSIGNED_BYTE, image.data);
+        stbi_image_free(image.data);
     }
-    info("Loaded {} images into texture array ({}x{}x{})", images.size(), width, height, components);
+    info("Loaded {} images into texture array ({}x{}x{})", images.size(), max_width, max_height, max_components);
 
     //Always set reasonable texture parameters
-    glTexParameteri(GL_TEXTURE_2D_ARRAY,GL_TEXTURE_MIN_FILTER,GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D_ARRAY,GL_TEXTURE_MAG_FILTER,GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D_ARRAY,GL_TEXTURE_MIN_FILTER,GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D_ARRAY,GL_TEXTURE_MAG_FILTER,GL_NEAREST);
     glTexParameteri(GL_TEXTURE_2D_ARRAY,GL_TEXTURE_WRAP_S,GL_CLAMP_TO_EDGE);
     glTexParameteri(GL_TEXTURE_2D_ARRAY,GL_TEXTURE_WRAP_T,GL_CLAMP_TO_EDGE);
 

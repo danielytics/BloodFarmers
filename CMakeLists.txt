@@ -67,11 +67,12 @@ set(SOURCES
 add_executable(BloodFarm ${SOURCES} $<TARGET_OBJECTS:FastNoiseSIMD>)
 
 # Packaged dependencies
+set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${PROJECT_SOURCE_DIR}/cmake")
 
-find_package (SDL2)
+find_package(SDL2 2.0.9)
 if (SDL2_FOUND)
-  include_directories(${SDL2_INCLUDE_DIRS})
-  target_link_libraries(BloodFarm ${SDL2_LIBRARIES})
+    include_directories(${SDL2_INCLUDE_DIR})
+    target_link_libraries(BloodFarm ${SDL2_LIBRARY})
 endif()
 
 find_package(GLEW REQUIRED)

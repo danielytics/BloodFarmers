@@ -42,7 +42,7 @@ GLuint compileAndAttach (GLuint shaderProgram, GLenum programType, const std::st
     return program;
 }
 
-graphics::shader_t createShader (const std::string& vertexShaderFilename, const std::string& vertexShader, const std::string& fragmentShaderFilename, const std::string& fragmentShader)
+graphics::shader createShader (const std::string& vertexShaderFilename, const std::string& vertexShader, const std::string& fragmentShaderFilename, const std::string& fragmentShader)
 {
     GLuint shaderProgram = glCreateProgram();
 
@@ -73,13 +73,13 @@ graphics::shader_t createShader (const std::string& vertexShaderFilename, const 
     return {shaderProgram, vertexProgram, fragmentProgram};
 }
 
-graphics::shader_t shaders::load (const std::string& vertexShaderFilename, const std::string& fragmentShaderFilename) {
+graphics::shader graphics::shader::load (const std::string& vertexShaderFilename, const std::string& fragmentShaderFilename) {
     return createShader(vertexShaderFilename, helpers::readToString(vertexShaderFilename),
                         fragmentShaderFilename, helpers::readToString(fragmentShaderFilename));
 }
 
 
-void graphics::shader_t::unload () const
+void graphics::shader::unload () const
 {
     glUseProgram(0);
     glDetachShader(programID, vertexProgram);
@@ -89,13 +89,13 @@ void graphics::shader_t::unload () const
     glDeleteShader(fragmentProgram);
 }
 
-void graphics::shader_t::bindUnfiromBlock(const std::string& blockName, unsigned int bindingPoint) const
+void graphics::shader::bindUnfiromBlock(const std::string& blockName, unsigned int bindingPoint) const
 {
     GLuint location = glGetUniformBlockIndex(programID, blockName.c_str());
     glUniformBlockBinding(programID, location, bindingPoint);
 }
 
-graphics::uniform_t graphics::shader_t::uniform(const std::string& name) const
+graphics::uniform graphics::shader::uniform(const std::string& name) const
 {
-    return glGetUniformLocation(programID, name.c_str());
+    return {glGetUniformLocation(programID, name.c_str())};
 }
