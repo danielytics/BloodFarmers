@@ -6,8 +6,6 @@
 
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
-#define GLM_ENABLE_EXPERIMENTAL
-#include <glm/gtx/rotate_vector.hpp>
 
 #include <FastNoiseSIMD.h>
 #include <physfs.hpp>
@@ -18,6 +16,7 @@
 #include "graphics/shader.h"
 #include "graphics/textures.h"
 #include "graphics/mesh.h"
+#include "graphics/camera.h"
 
 #include <functional>
 #include <cmath>
@@ -73,10 +72,10 @@ graphics::mesh generate_map (MapSurface surface, const std::vector<std::vector<s
             int row = tile_id / 42;
             int col = tile_id - (row * 42);
             float u = (float(col) * 48.0f) * 0.000496031746031746f;
-            float v = (float(row) * 48.0f) * 0.000496031746031746f;
+            float v = (float(row) * 48.0f) * 0.000496031746031746;
             u += 0.000248015873015873f;
             v += 0.000248015873015873f;
-            info("zyz: {},{},{} uv: {}, {} l: {}", x, 0, z, u, v, layer);
+            debug("xyz: {},{},{} uv: {}, {} l: {}", x, 0, z, u, v, layer);
             if (surface == MapSurface::Ground) {
                 vertices.push_back(glm::vec3(x,      0.0f, z));
                 vertices.push_back(glm::vec3(x,      0.0f, z+1.0f));
@@ -115,7 +114,6 @@ graphics::mesh generate_map (MapSurface surface, const std::vector<std::vector<s
     mesh.addBuffer(textureCoordinates);
     return mesh;
 }
-
 
 int main (int argc, char* argv[])
 {
@@ -163,6 +161,11 @@ int main (int argc, char* argv[])
         // Load OpenGL 3+ functions
         glewExperimental = GL_TRUE;
         glewInit();
+
+        int max_tex_layers, max_tex_units;
+        glGetIntegerv(GL_MAX_ARRAY_TEXTURE_LAYERS, &max_tex_layers);
+        glGetIntegerv(GL_MAX_COMBINED_TEXTURE_IMAGE_UNITS, &max_tex_units);
+        info("Max layers: {}  Max textures: {}", max_tex_layers, max_tex_units);
 
         SDL_GameController* gameController;
         {
@@ -229,12 +232,8 @@ int main (int argc, char* argv[])
         #undef B
         #undef C
 
-        glm::vec3 camera = glm::vec3(0.0f, 2.0f, 10.0f);
-        glm::vec3 up = glm::vec3(0.0f, 1.0f, 0.0f);
         glm::mat4 projection_matrix = glm::perspective(glm::radians(60.0f), 640.0f / 480.0f, 0.1f, 100.0f);
-        float pitch = 0;
-        float yaw = 0;
-        float angle = 0;
+        graphics::camera camera{0.0f, 2.0f, 10.0f};
 
         info("Ready");
         SDL_Event event;
@@ -264,6 +263,8 @@ int main (int argc, char* argv[])
 
         do {
             trace_block("gameloop");
+            camera.beginFrame(frame_time);
+
             // Gather and dispatch input
             while (SDL_PollEvent(&event))
             {
@@ -313,27 +314,19 @@ int main (int argc, char* argv[])
             }
 
 
-            camera.x += axis_values[SDL_CONTROLLER_AXIS_LEFTX] * 5.0f * frame_time;
-            camera.z += axis_values[SDL_CONTROLLER_AXIS_LEFTY] * 5.0f * frame_time;
+            camera.panX(axis_values[SDL_CONTROLLER_AXIS_LEFTX] * 5.0f);
+            camera.panZ(axis_values[SDL_CONTROLLER_AXIS_LEFTY] * 5.0f);
             if (current_button_states[SDL_CONTROLLER_BUTTON_LEFTSHOULDER]) {
-                angle -= 45.0f * frame_time;
+                camera.tiltBy(-45.0f);
             }
             if (current_button_states[SDL_CONTROLLER_BUTTON_RIGHTSHOULDER]) {
-                angle += 45.0f * frame_time;
+                camera.tiltBy(45.0f);
             }
 
-            glm::vec3 front = glm::rotate(glm::vec3(0, 0, -1), glm::radians(angle), glm::vec3(1, 0, 0));
-            front = glm::normalize(front);
-            // Also re-calculate the Right and Up vector
-            glm::vec3 right = glm::normalize(glm::cross(front, up));  // Normalize the vectors, because their length gets closer to 0 the more you look up or down which results in slower movement.
-            glm::vec3 Up    = glm::normalize(glm::cross(right, front));
-
-            glm::vec3 direction = camera + front;
-            info("camera: {:.4f},{:.4f},{:.4f} target: {:.4f},{:.4f},{:.4f} up: {:.4f},{:.4f},{:.4f} p,y: {:.4f},{:.4f}", camera.x, camera.y, camera.z, direction.x, direction.y, direction.z, Up.x, Up.y, Up.z, pitch, yaw);
-            glm::mat4 view = glm::lookAt(camera, direction, Up);
-            glm::mat4 ground_matrix = glm::translate(glm::mat4(1.0), glm::vec3(-5.0f, 0.0f, -2.0f)); // translate it down so it's at the center of the scene
-            glm::mat4 wall_matrix = glm::translate(glm::mat4(1.0), glm::vec3(0.0f, 0.0f, 3.0f)); // translate it down so it's at the center of the scene
-            glm::mat4 sidewall_matrix = glm::translate(glm::mat4(1.0), glm::vec3(0.0f, 0.0f, -1.0f)); // translate it down so it's at the center of the scene
+            glm::mat4 view = camera.view();
+            glm::mat4 ground_matrix = glm::translate(glm::mat4(1.0), glm::vec3(-5.0f, 0.0f, -2.0f));
+            glm::mat4 wall_matrix = glm::translate(glm::mat4(1.0), glm::vec3(0.0f, 0.0f, 3.0f));
+            glm::mat4 sidewall_matrix = glm::translate(glm::mat4(1.0), glm::vec3(0.0f, 0.0f, -1.0f));
 
             glClearColor(0.3f, 0.3f, 0.3f, 1.0f);
             glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
