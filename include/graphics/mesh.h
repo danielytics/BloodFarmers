@@ -50,14 +50,14 @@ namespace graphics {
         mesh () {
             glGenVertexArrays(1, &vao);
         }
-        ~mesh () {
+        void unload () {
             glDeleteVertexArrays(1, &vao);
             for (auto vbo : vbos) {
                 glDeleteBuffers(1, &vbo);
             }
         }
-
-        inline void bind() {
+        
+        inline void bind() const {
             glBindVertexArray(vao);
         }
 
@@ -106,18 +106,17 @@ namespace graphics {
             return id;
         }
 
-        inline void draw () {
+        inline void draw () const {
             glBindVertexArray(vao);
             glDrawArrays(GL_TRIANGLES, 0, count);
         }
-        inline void draw (unsigned int instances) {
+        inline void draw (unsigned int instances) const {
             glBindVertexArray(vao);
             checkErrors();
             glDrawArraysInstanced(GL_TRIANGLE_STRIP, 0, count, instances);
             checkErrors();
         }
-        inline void drawIndexed (const std::vector<GLushort>& indices)
-        {
+        inline void drawIndexed (const std::vector<GLushort>& indices) const {
             glBindVertexArray(vao);
             glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ibo);
             auto indexData = reinterpret_cast<const GLushort*>(indices.data());

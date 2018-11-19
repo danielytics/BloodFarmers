@@ -9,8 +9,8 @@
 
 #include <FastNoiseSIMD.h>
 #include <physfs.hpp>
-
 #include <cpptoml.h>
+#include <entt/entt.hpp>
 
 #include <functional>
 #include <cmath>
@@ -55,76 +55,14 @@ struct Metrics_tag {};
 using config = semi::static_map<std::string, int, Config_tag>;
 using metrics = semi::static_map<std::string, float, Metrics_tag>;
 
-struct Color {
-    float r, g, b;
-};
-
-enum class MapSurface {
-    Ground,
-    Wall,
-    SideWall,
-};
-
-graphics::mesh generate_map (MapSurface surface, const std::vector<std::vector<std::pair<unsigned int, unsigned int>>>& tiles)
-{
-    std::vector<glm::vec3> vertices;
-    std::vector<glm::vec3> textureCoordinates;
-    float z = tiles.size() - 1;
-    for (const auto& tile_row : tiles) {
-        float x = 0.0f;
-        for (const auto pair : tile_row) {
-            auto [tile_id, layer] = pair;
-            int row = tile_id / 42;
-            int col = tile_id - (row * 42);
-            float u = (float(col) * 48.0f) * 0.000496031746031746f;
-            float v = (float(row) * 48.0f) * 0.000496031746031746;
-            u += 0.000248015873015873f;
-            v += 0.000248015873015873f;
-            debug("xyz: {},{},{} uv: {}, {} l: {}", x, 0, z, u, v, layer);
-            if (surface == MapSurface::Ground) {
-                vertices.push_back(glm::vec3(x,      0.0f, z));
-                vertices.push_back(glm::vec3(x,      0.0f, z+1.0f));
-                vertices.push_back(glm::vec3(x+1.0f, 0.0f, z));
-                vertices.push_back(glm::vec3(x+1.0f, 0.0f, z));
-                vertices.push_back(glm::vec3(x,      0.0f, z+1.0f));
-                vertices.push_back(glm::vec3(x+1.0f, 0.0f, z+1.0f));
-            } else if (surface == MapSurface::Wall) {
-                vertices.push_back(glm::vec3(x,      z,      0.0f));
-                vertices.push_back(glm::vec3(x,      z+1.0f, 0.0f));
-                vertices.push_back(glm::vec3(x+1.0f, z,      0.0f));
-                vertices.push_back(glm::vec3(x+1.0f, z,      0.0f));
-                vertices.push_back(glm::vec3(x,      z+1.0f, 0.0f));
-                vertices.push_back(glm::vec3(x+1.0f, z+1.0f, 0.0f));
-            } else if (surface == MapSurface::SideWall) {
-                vertices.push_back(glm::vec3(0.0f, z,      x     ));
-                vertices.push_back(glm::vec3(0.0f, z+1.0f, x     ));
-                vertices.push_back(glm::vec3(0.0f, z,      x+1.0f));
-                vertices.push_back(glm::vec3(0.0f, z,      x+1.0f));
-                vertices.push_back(glm::vec3(0.0f, z+1.0f, x     ));
-                vertices.push_back(glm::vec3(0.0f, z+1.0f, x+1.0f));
-            }
-            textureCoordinates.push_back(glm::vec3(u, (v+0.023809523809523808f), layer));
-            textureCoordinates.push_back(glm::vec3(u, v, layer));
-            textureCoordinates.push_back(glm::vec3((u+0.023809523809523808f), (v+0.023809523809523808f), layer));
-            textureCoordinates.push_back(glm::vec3((u+0.023809523809523808f), (v+0.023809523809523808f), layer));
-            textureCoordinates.push_back(glm::vec3(u, v, layer));
-            textureCoordinates.push_back(glm::vec3((u+0.023809523809523808f), v, layer));
-            ++x;
-        }
-        --z;
-    }
-    graphics::mesh mesh;
-    mesh.bind();
-    mesh.addBuffer(vertices, true);
-    mesh.addBuffer(textureCoordinates);
-    return mesh;
-}
-
 #include <spdlog/fmt/fmt.h>
 
-std::vector<GLuint> loadTilesets (const std::string& config_file)
+using Tilesets = std::pair<std::vector<GLuint>, std::map<entt::hashed_string::hash_type, int>>;
+
+const Tilesets loadTilesets (const std::string& config_file)
 {
-    std::vector<GLuint> tilesets;
+    std::vector<GLuint> texture_arrays;
+    std::map<entt::hashed_string::hash_type, int> texture_units;
     try {
         std::istringstream iss;
         iss.str(helpers::readToString(config_file));
@@ -132,31 +70,130 @@ std::vector<GLuint> loadTilesets (const std::string& config_file)
         std::shared_ptr<cpptoml::table> config = parser.parse();
         auto tarr = config->get_table_array("tileset");
         int tileset_idx = 0;
-        for (const auto& table : *tarr)
-        {
-            auto id = table->get_as<std::string>("id");
+        for (const auto& table : *tarr) {
+            auto name = table->get_as<std::string>("id");
             auto directory = table->get_as<std::string>("directory");
             auto pattern = table->get_as<std::string>("file-pattern");
             auto range = table->get_array_of<int64_t>("file-range");
+            auto id = entt::hashed_string{name->data()};
+            texture_units[id] = tileset_idx;
             std::vector<std::string> tiles;
             for (auto i = (*range)[0]; i <= (*range)[1]; ++i) {
                 tiles.push_back(*directory + fmt::format(*pattern, i));
             }
-            info("Loading {} images for tileset '{}'", tiles.size(), *id);
+            info("Loading {} images for tileset '{}'", tiles.size(), id);
             glActiveTexture(GL_TEXTURE0 + tileset_idx++);
-            auto tileset = textures::loadArray(tiles);
-            glBindTexture(GL_TEXTURE_2D_ARRAY, tileset);
-            tilesets.push_back(tileset);
+            auto texture_array = textures::loadArray(tiles);
+            glBindTexture(GL_TEXTURE_2D_ARRAY, texture_array);
+            texture_arrays.push_back(texture_array);
         }
     }
     catch (const cpptoml::parse_exception& e) {
         fatal("Parsing failed: {}", e.what());
     }
-    return tilesets;
+    return {texture_arrays, texture_units};
 }
 
-void unloadTilesets (const std::vector<GLuint>& tilesets) {
-    glDeleteTextures(tilesets.size(), tilesets.data());
+void unloadTilesets (const Tilesets& tilesets) {
+    glDeleteTextures(tilesets.first.size(), tilesets.first.data());
+}
+
+class Surface {
+public:
+    Surface(graphics::mesh mesh, glm::mat4 model_matrix, int texture_unit) :
+        mesh(mesh),
+        model_matrix(std::move(model_matrix)),
+        texture_unit(texture_unit)
+    {}
+
+    inline void draw (const graphics::uniform& u_model, const graphics::uniform& u_tileset) const {
+        u_model.set(model_matrix);
+        u_tileset.set(texture_unit);
+        mesh.bind();
+        mesh.draw();
+    }
+
+    inline void unload () {
+        mesh.unload();
+    }
+
+private:
+    graphics::mesh mesh;
+    glm::mat4 model_matrix;
+    int texture_unit;
+};
+
+std::vector<Surface> loadLevel (const Tilesets& tilesets, const std::string& config_file)
+{
+    std::vector<Surface> surfaces;
+    try {
+        std::istringstream iss;
+        iss.str(helpers::readToString(config_file));
+        cpptoml::parser parser{iss};
+        std::shared_ptr<cpptoml::table> config = parser.parse();
+        auto tarr = config->get_table_array("surface");
+        for (const auto& table : *tarr) {
+            auto position = table->get_array_of<double>("position");
+            auto rotate = table->get_array_of<double>("rotate");
+            auto tileset_name = table->get_as<std::string>("tileset");
+            auto tile_data = table->get_array_of<cpptoml::array>("tiles");
+
+            auto id = entt::hashed_string{tileset_name->data()};
+            auto tileset_idx = tilesets.second.at(id);
+
+            auto pos = glm::vec3((*position)[0], (*position)[1], (*position)[2]);
+            glm::mat4 matrix = glm::mat4(1);
+            matrix = glm::translate(matrix, pos);
+            matrix = glm::rotate(matrix, glm::radians(float((*rotate)[0])), glm::vec3(1, 0, 0));
+            matrix = glm::rotate(matrix, glm::radians(float((*rotate)[1])), glm::vec3(0, 1, 0));
+            matrix = glm::rotate(matrix, glm::radians(float((*rotate)[2])), glm::vec3(0, 0, 1));
+
+            std::vector<glm::vec3> vertices;
+            std::vector<glm::vec3> textureCoordinates;
+            float row = tile_data->size();
+            for (const auto& row_data : *tile_data) {
+                float col = 0;
+                auto col_data = row_data->get_array_of<int64_t>();
+                for (const auto& layer : *col_data) {
+                    vertices.push_back({col,   row  , 0});
+                    vertices.push_back({col,   row-1, 0});
+                    vertices.push_back({col+1, row-1, 0});
+                    vertices.push_back({col+1, row-1, 0});
+                    vertices.push_back({col+1, row  , 0});
+                    vertices.push_back({col,   row  , 0});
+
+                    textureCoordinates.push_back(glm::vec3(0, 0, layer));
+                    textureCoordinates.push_back(glm::vec3(0, 1, layer));
+                    textureCoordinates.push_back(glm::vec3(1, 1, layer));
+                    textureCoordinates.push_back(glm::vec3(1, 1, layer));
+                    textureCoordinates.push_back(glm::vec3(1, 0, layer));
+                    textureCoordinates.push_back(glm::vec3(0, 0, layer));
+
+                    info("{},{} -- {},{}", col, row, col+1, row-1);
+                    ++col;
+                }
+                --row;
+            }
+
+            graphics::mesh mesh;
+            mesh.bind();
+            mesh.addBuffer(vertices, true);
+            mesh.addBuffer(textureCoordinates);
+            surfaces.push_back({mesh, matrix, tileset_idx});
+        }
+    }
+    catch (const cpptoml::parse_exception& e) {
+        fatal("Parsing failed: {}", e.what());
+    }
+    return surfaces;
+}
+
+void unloadLevel (std::vector<Surface>& surfaces)
+{
+    for (auto& surface : surfaces) {
+        surface.unload();
+    }
+    surfaces.clear();
 }
 
 int main (int argc, char* argv[])
@@ -233,8 +270,6 @@ int main (int argc, char* argv[])
 
         // auto myNoise = helpers::ptr<FastNoiseSIMD>(FastNoiseSIMD::NewFastNoiseSIMD).construct(1337);
         // auto noiseSet = helpers::ptr<float>(myNoise->GetSimplexFractalSet(0, 0, 0, 16, 16, 16));
-        
-        loadTilesets("images/tilesets.toml");
 
         // Set OpenGL settings
         glEnable(GL_DEPTH_TEST);
@@ -250,65 +285,41 @@ int main (int argc, char* argv[])
         glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
         glEnable(GL_MULTISAMPLE);
 
-        info("Loading shader");
-        auto myShader = graphics::shader::load("shaders/model.vert", "shaders/model.frag");
+        auto tilesets = loadTilesets("images/tilesets.toml");
 
-        // #define A(x,y) {((y)*42)+x, 0}
-        // #define B(x,y) {((y)*42)+x, 1}
-        // #define C(x,y) {((y)*42)+x, 2}
-        // auto ground = generate_map(MapSurface::Ground, {
-        //     {A(20, 30), A(20, 30), A(20, 30), A(6, 8),  A(6, 8),   A(20, 30), A(20, 30), A(20, 30), A(20, 30), A(20, 30)},
-        //     {A(20, 30), A(20, 30), A(20, 30), A(6, 8),  A(6, 8),   A(20, 30), A(20, 30), A(20, 30), A(20, 30), A(20, 30)},
-        //     {A(20, 30), A(20, 30), A(20, 30), A(6, 8),  A(6, 8),   A(20, 30), A(20, 30), A(20, 30), A(20, 30), A(20, 30)},
-        //     {A(20, 30), A(20, 30), A(20, 30), A(6, 8),  A(6, 8),   A(20, 30), A(20, 30), A(20, 30), A(20, 30), A(20, 30)},
-        //     {A(20, 30), A(20, 30), A(20, 30), A(6, 8),  A(6, 8),   A(20, 30), A(20, 30), A(20, 30), A(20, 30), A(20, 30)},
-        //     {A(20, 30), A(20, 30), A(20, 30), A(6, 8),  A(6, 8),   A(20, 30), A(20, 30), A(20, 30), A(20, 30), A(20, 30)},
-        //     {A(20, 30), A(20, 30), A(20, 30), A(6, 8),  A(6, 8),   A(20, 30), A(20, 30), A(20, 30), A(20, 30), A(20, 30)},
-        //     {A(20, 30), A(20, 30), A(20, 30), A(6, 8),  A(6, 8),  A(20, 30), A(20, 30), A(20, 30), A(20, 30), A(20, 30)},
-        //     {A(20, 30), A(20, 30), A(20, 30), A(6, 8),  A(6, 8),  A(20, 30), A(20, 30), A(20, 30), A(20, 30), A(20, 30)},
-        //     {A(20, 30), A(20, 30), A(20, 30), A(6, 8),  A(6, 8),  A(20, 30), A(20, 30), A(20, 30), A(20, 30), A(20, 30)},
-        // });
-        // auto wall = generate_map(MapSurface::Wall, {
-        //     {C(21, 0),  C(21, 0),  C(21, 0),  C(21, 0),  C(21, 0) },
-        //     {C(8, 1),   C(8, 1),   C(8, 1),   C(8, 1),   C(8, 1)  },
-        // });
-        // auto sideWall = generate_map(MapSurface::SideWall, {
-        //     {C(21, 0),  C(21, 0),  C(21, 0),  C(21, 0)},
-        //     {C(8, 1),   C(8, 1),   C(8, 1),   C(8, 1) },
-        // });
-        // #undef A
-        // #undef B
-        // #undef C
+        info("Loading shader");
+        auto myShader = graphics::shader::load({
+            {graphics::shader::types::Vertex,   "shaders/model.vert"},
+            {graphics::shader::types::Fragment, "shaders/model.frag"},
+        });
+
+        auto level = loadLevel(tilesets, "maps/level.toml");
 
         glm::mat4 projection_matrix = glm::perspective(glm::radians(60.0f), 640.0f / 480.0f, 0.1f, 100.0f);
         graphics::camera camera{0.0f, 2.0f, 10.0f};
 
-        info("Ready");
+        myShader.use();
+        myShader.uniform("projection").set(projection_matrix);
+
+        auto model_uniform = myShader.uniform("model");
+        auto texture_uniform = myShader.uniform("texture_albedo");
+
         SDL_Event event;
         bool running = true;
+
         // Initialise timekeeping
         DeltaTime_t frame_time = 0;
         ElapsedTime_t time_since_start = 0L; // microseconds
         auto start_time = Clock::now();
         auto previous_time = start_time;
         auto current_time = start_time;
-        // Run the main processing loop
-        ElapsedTime_t last_change_time = 0;
-        std::vector<Color> colors{
-            {1.0f, 0.0f, 0.0f},
-            {0.0f, 1.0f, 0.0f},
-            {0.0f, 0.0f, 1.0f},
-            {1.0f, 1.0f, 0.0f},
-            {1.0f, 0.0f, 1.0f},
-            {0.0f, 1.0f, 1.0f},
-        };
-        int clear_color_idx = 0;
-        float direction = 1.0f;
 
         Uint8 current_button_states[SDL_CONTROLLER_BUTTON_MAX];
         Uint8 prev_button_states[SDL_CONTROLLER_BUTTON_MAX];
         float axis_values[SDL_CONTROLLER_AXIS_MAX];
 
+        info("Ready");
+        // Run the main processing loop
         do {
             trace_block("gameloop");
             camera.beginFrame(frame_time);
@@ -372,27 +383,19 @@ int main (int argc, char* argv[])
             }
 
             glm::mat4 view = camera.view();
-            glm::mat4 ground_matrix = glm::translate(glm::mat4(1.0), glm::vec3(-5.0f, 0.0f, -2.0f));
-            glm::mat4 wall_matrix = glm::translate(glm::mat4(1.0), glm::vec3(0.0f, 0.0f, 3.0f));
-            glm::mat4 sidewall_matrix = glm::translate(glm::mat4(1.0), glm::vec3(0.0f, 0.0f, -1.0f));
 
-            glClearColor(0.3f, 0.3f, 0.3f, 1.0f);
+
+            // glClearColor(0.3f, 0.3f, 0.3f, 1.0f);
+            glClearColor(0, 0, 0, 1.0f);
             glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
             glEnable(GL_BLEND);
             myShader.use();
-            myShader.uniform("projection").set(projection_matrix);
             myShader.uniform("view").set(view);
-            myShader.uniform("model").set(ground_matrix);
-            myShader.uniform("texture_albedo").set(0);
-            // ground.bind();
-            // ground.draw();
-            // myShader.uniform("model").set(wall_matrix);
-            // wall.bind();
-            // wall.draw();
-            // myShader.uniform("model").set(sidewall_matrix);
-            // sideWall.bind();
-            // sideWall.draw();
+
+            for (const auto& surface : level) {
+                surface.draw(model_uniform, texture_uniform);
+            }
 
             SDL_GL_SwapWindow(window.get());
 
@@ -409,6 +412,8 @@ int main (int argc, char* argv[])
                 time_since_start += frame_time_micros;
             }
         } while (running);
+
+        unloadLevel(level);
 
     } catch (std::exception& e) {
         error("Uncaught exception: {}", e.what());

@@ -10,5 +10,5 @@ logging = "debug"
 profiling = false
 
 [game]
-sources = ["data/"]
+sources = ["game.data", "game/"]
 dev_mode = true

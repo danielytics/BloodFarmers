@@ -6,28 +6,28 @@
 #include <fstream>
 #include <iostream>
 
-GLuint compileAndAttach (GLuint shaderProgram, GLenum programType, const std::string& filename, const std::string& shaderSource)
+GLuint compileAndAttach (GLuint shaderProgram, GLenum shaderType, const std::string& filename, const std::string& shaderSource)
 {
-    GLuint program = glCreateShader(programType);
+    GLuint shader = glCreateShader(shaderType);
 
     // Compile the shader
     char* source = const_cast<char*>(shaderSource.c_str());
     int32_t size = int32_t(shaderSource.length());
-    glShaderSource(program, 1, &source, &size);
-    glCompileShader(program);
+    glShaderSource(shader, 1, &source, &size);
+    glCompileShader(shader);
 
     // Check for compile errors
     int wasCompiled = 0;
-    glGetShaderiv(program, GL_COMPILE_STATUS, &wasCompiled);
+    glGetShaderiv(shader, GL_COMPILE_STATUS, &wasCompiled);
     if (wasCompiled == 0)
     {
         // Find length of shader info log
         int maxLength;
-        glGetShaderiv(program, GL_INFO_LOG_LENGTH, &maxLength);
+        glGetShaderiv(shader, GL_INFO_LOG_LENGTH, &maxLength);
 
         // Get shader info log
         char* shaderInfoLog = new char[maxLength];
-        glGetShaderInfoLog(program, maxLength, &maxLength, shaderInfoLog );
+        glGetShaderInfoLog(shader, maxLength, &maxLength, shaderInfoLog );
 
         fatal("Failed to compile shader:{}\n{}", filename, shaderInfoLog);
 
@@ -38,18 +38,28 @@ GLuint compileAndAttach (GLuint shaderProgram, GLenum programType, const std::st
     }
 
     // Attach the compiled program
-    glAttachShader(shaderProgram, program);
-    return program;
+    glAttachShader(shaderProgram, shader);
+    return shader;
 }
 
-graphics::shader createShader (const std::string& vertexShaderFilename, const std::string& vertexShader, const std::string& fragmentShaderFilename, const std::string& fragmentShader)
+graphics::shader graphics::shader::load (const std::map<graphics::shader::types,std::string>& shaderFiles)
 {
+    static std::map<graphics::shader::types,GLenum> shaderTypes = {
+        {graphics::shader::types::Vertex, GL_VERTEX_SHADER},
+        {graphics::shader::types::Fragment, GL_FRAGMENT_SHADER},
+        {graphics::shader::types::Geometry, GL_GEOMETRY_SHADER},
+        {graphics::shader::types::TessControl, GL_TESS_CONTROL_SHADER},
+        {graphics::shader::types::TessEval, GL_TESS_EVALUATION_SHADER},
+    };
+
     GLuint shaderProgram = glCreateProgram();
-
-    // Compile shader programs
-    GLuint vertexProgram = compileAndAttach(shaderProgram, GL_VERTEX_SHADER, vertexShaderFilename, vertexShader);
-    GLuint fragmentProgram = compileAndAttach(shaderProgram, GL_FRAGMENT_SHADER, fragmentShaderFilename, fragmentShader);
-
+    std::vector<GLuint> shaders;
+    for (auto [type, filename] : shaderFiles) {
+        auto shaderType = shaderTypes[type];
+        auto source = helpers::readToString(filename);
+        GLuint shader = compileAndAttach(shaderProgram, shaderType, filename, source);
+        shaders.push_back(shader);
+    }
     // Link the shader programs into one
     glLinkProgram(shaderProgram);
     int isLinked;
@@ -63,30 +73,21 @@ graphics::shader createShader (const std::string& vertexShaderFilename, const st
         char* shaderProgramInfoLog = new char[maxLength];
         glGetProgramInfoLog(shaderProgram, maxLength, &maxLength, shaderProgramInfoLog);
 
-        fatal("Linking shaders {} and {} failed.\n{}", vertexShaderFilename, fragmentShaderFilename, shaderProgramInfoLog);
-
         delete [] shaderProgramInfoLog;
-
-        return {};
+        fatal("Linking shaders failed.\n{}", shaderProgramInfoLog);
     }
-
-    return {shaderProgram, vertexProgram, fragmentProgram};
-}
-
-graphics::shader graphics::shader::load (const std::string& vertexShaderFilename, const std::string& fragmentShaderFilename) {
-    return createShader(vertexShaderFilename, helpers::readToString(vertexShaderFilename),
-                        fragmentShaderFilename, helpers::readToString(fragmentShaderFilename));
+    return {shaderProgram, shaders};
 }
 
 
 void graphics::shader::unload () const
 {
     glUseProgram(0);
-    glDetachShader(programID, vertexProgram);
-    glDetachShader(programID, fragmentProgram);
+    for (auto shader : shaders) {
+        glDetachShader(programID, shader);
+        glDeleteShader(shader);
+    }
     glDeleteProgram(programID);
-    glDeleteShader(vertexProgram);
-    glDeleteShader(fragmentProgram);
 }
 
 void graphics::shader::bindUnfiromBlock(const std::string& blockName, unsigned int bindingPoint) const
