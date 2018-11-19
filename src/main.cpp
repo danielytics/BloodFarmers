@@ -10,6 +10,12 @@
 #include <FastNoiseSIMD.h>
 #include <physfs.hpp>
 
+#include <cpptoml.h>
+
+#include <functional>
+#include <cmath>
+#include <sstream>
+
 #include "util/helpers.h"
 #include "util/logging.h"
 #include "util/clock.h"
@@ -18,8 +24,7 @@
 #include "graphics/mesh.h"
 #include "graphics/camera.h"
 
-#include <functional>
-#include <cmath>
+
 
 
 std::map<GLenum,std::string> GL_ERROR_STRINGS = {
@@ -115,6 +120,45 @@ graphics::mesh generate_map (MapSurface surface, const std::vector<std::vector<s
     return mesh;
 }
 
+#include <spdlog/fmt/fmt.h>
+
+std::vector<GLuint> loadTilesets (const std::string& config_file)
+{
+    std::vector<GLuint> tilesets;
+    try {
+        std::istringstream iss;
+        iss.str(helpers::readToString(config_file));
+        cpptoml::parser parser{iss};
+        std::shared_ptr<cpptoml::table> config = parser.parse();
+        auto tarr = config->get_table_array("tileset");
+        int tileset_idx = 0;
+        for (const auto& table : *tarr)
+        {
+            auto id = table->get_as<std::string>("id");
+            auto directory = table->get_as<std::string>("directory");
+            auto pattern = table->get_as<std::string>("file-pattern");
+            auto range = table->get_array_of<int64_t>("file-range");
+            std::vector<std::string> tiles;
+            for (auto i = (*range)[0]; i <= (*range)[1]; ++i) {
+                tiles.push_back(*directory + fmt::format(*pattern, i));
+            }
+            info("Loading {} images for tileset '{}'", tiles.size(), *id);
+            glActiveTexture(GL_TEXTURE0 + tileset_idx++);
+            auto tileset = textures::loadArray(tiles);
+            glBindTexture(GL_TEXTURE_2D_ARRAY, tileset);
+            tilesets.push_back(tileset);
+        }
+    }
+    catch (const cpptoml::parse_exception& e) {
+        fatal("Parsing failed: {}", e.what());
+    }
+    return tilesets;
+}
+
+void unloadTilesets (const std::vector<GLuint>& tilesets) {
+    glDeleteTextures(tilesets.size(), tilesets.data());
+}
+
 int main (int argc, char* argv[])
 {
     logging::init();
@@ -190,15 +234,7 @@ int main (int argc, char* argv[])
         // auto myNoise = helpers::ptr<FastNoiseSIMD>(FastNoiseSIMD::NewFastNoiseSIMD).construct(1337);
         // auto noiseSet = helpers::ptr<float>(myNoise->GetSimplexFractalSet(0, 0, 0, 16, 16, 16));
         
-        glActiveTexture(GL_TEXTURE0);
-        auto tilesets = textures::loadArray(std::vector<std::string>{
-            "images/tileset0.png",
-            "images/tileset1.png",
-            "images/tileset2.png",
-        });
-        info("Images loaded. Binding.");
-        glBindTexture(GL_TEXTURE_2D_ARRAY, tilesets);
-        on_exit_scope = [tilesets](){ glDeleteTextures(1, &tilesets); };
+        loadTilesets("images/tilesets.toml");
 
         // Set OpenGL settings
         glEnable(GL_DEPTH_TEST);
@@ -217,32 +253,32 @@ int main (int argc, char* argv[])
         info("Loading shader");
         auto myShader = graphics::shader::load("shaders/model.vert", "shaders/model.frag");
 
-        #define A(x,y) {((y)*42)+x, 0}
-        #define B(x,y) {((y)*42)+x, 1}
-        #define C(x,y) {((y)*42)+x, 2}
-        auto ground = generate_map(MapSurface::Ground, {
-            {A(20, 30), A(20, 30), A(20, 30), A(6, 8),  A(6, 8),   A(20, 30), A(20, 30), A(20, 30), A(20, 30), A(20, 30)},
-            {A(20, 30), A(20, 30), A(20, 30), A(6, 8),  A(6, 8),   A(20, 30), A(20, 30), A(20, 30), A(20, 30), A(20, 30)},
-            {A(20, 30), A(20, 30), A(20, 30), A(6, 8),  A(6, 8),   A(20, 30), A(20, 30), A(20, 30), A(20, 30), A(20, 30)},
-            {A(20, 30), A(20, 30), A(20, 30), A(6, 8),  A(6, 8),   A(20, 30), A(20, 30), A(20, 30), A(20, 30), A(20, 30)},
-            {A(20, 30), A(20, 30), A(20, 30), A(6, 8),  A(6, 8),   A(20, 30), A(20, 30), A(20, 30), A(20, 30), A(20, 30)},
-            {A(20, 30), A(20, 30), A(20, 30), A(6, 8),  A(6, 8),   A(20, 30), A(20, 30), A(20, 30), A(20, 30), A(20, 30)},
-            {A(20, 30), A(20, 30), A(20, 30), A(6, 8),  A(6, 8),   A(20, 30), A(20, 30), A(20, 30), A(20, 30), A(20, 30)},
-            {A(20, 30), A(20, 30), A(20, 30), A(6, 8),  A(6, 8),  A(20, 30), A(20, 30), A(20, 30), A(20, 30), A(20, 30)},
-            {A(20, 30), A(20, 30), A(20, 30), A(6, 8),  A(6, 8),  A(20, 30), A(20, 30), A(20, 30), A(20, 30), A(20, 30)},
-            {A(20, 30), A(20, 30), A(20, 30), A(6, 8),  A(6, 8),  A(20, 30), A(20, 30), A(20, 30), A(20, 30), A(20, 30)},
-        });
-        auto wall = generate_map(MapSurface::Wall, {
-            {C(21, 0),  C(21, 0),  C(21, 0),  C(21, 0),  C(21, 0) },
-            {C(8, 1),   C(8, 1),   C(8, 1),   C(8, 1),   C(8, 1)  },
-        });
-        auto sideWall = generate_map(MapSurface::SideWall, {
-            {C(21, 0),  C(21, 0),  C(21, 0),  C(21, 0)},
-            {C(8, 1),   C(8, 1),   C(8, 1),   C(8, 1) },
-        });
-        #undef A
-        #undef B
-        #undef C
+        // #define A(x,y) {((y)*42)+x, 0}
+        // #define B(x,y) {((y)*42)+x, 1}
+        // #define C(x,y) {((y)*42)+x, 2}
+        // auto ground = generate_map(MapSurface::Ground, {
+        //     {A(20, 30), A(20, 30), A(20, 30), A(6, 8),  A(6, 8),   A(20, 30), A(20, 30), A(20, 30), A(20, 30), A(20, 30)},
+        //     {A(20, 30), A(20, 30), A(20, 30), A(6, 8),  A(6, 8),   A(20, 30), A(20, 30), A(20, 30), A(20, 30), A(20, 30)},
+        //     {A(20, 30), A(20, 30), A(20, 30), A(6, 8),  A(6, 8),   A(20, 30), A(20, 30), A(20, 30), A(20, 30), A(20, 30)},
+        //     {A(20, 30), A(20, 30), A(20, 30), A(6, 8),  A(6, 8),   A(20, 30), A(20, 30), A(20, 30), A(20, 30), A(20, 30)},
+        //     {A(20, 30), A(20, 30), A(20, 30), A(6, 8),  A(6, 8),   A(20, 30), A(20, 30), A(20, 30), A(20, 30), A(20, 30)},
+        //     {A(20, 30), A(20, 30), A(20, 30), A(6, 8),  A(6, 8),   A(20, 30), A(20, 30), A(20, 30), A(20, 30), A(20, 30)},
+        //     {A(20, 30), A(20, 30), A(20, 30), A(6, 8),  A(6, 8),   A(20, 30), A(20, 30), A(20, 30), A(20, 30), A(20, 30)},
+        //     {A(20, 30), A(20, 30), A(20, 30), A(6, 8),  A(6, 8),  A(20, 30), A(20, 30), A(20, 30), A(20, 30), A(20, 30)},
+        //     {A(20, 30), A(20, 30), A(20, 30), A(6, 8),  A(6, 8),  A(20, 30), A(20, 30), A(20, 30), A(20, 30), A(20, 30)},
+        //     {A(20, 30), A(20, 30), A(20, 30), A(6, 8),  A(6, 8),  A(20, 30), A(20, 30), A(20, 30), A(20, 30), A(20, 30)},
+        // });
+        // auto wall = generate_map(MapSurface::Wall, {
+        //     {C(21, 0),  C(21, 0),  C(21, 0),  C(21, 0),  C(21, 0) },
+        //     {C(8, 1),   C(8, 1),   C(8, 1),   C(8, 1),   C(8, 1)  },
+        // });
+        // auto sideWall = generate_map(MapSurface::SideWall, {
+        //     {C(21, 0),  C(21, 0),  C(21, 0),  C(21, 0)},
+        //     {C(8, 1),   C(8, 1),   C(8, 1),   C(8, 1) },
+        // });
+        // #undef A
+        // #undef B
+        // #undef C
 
         glm::mat4 projection_matrix = glm::perspective(glm::radians(60.0f), 640.0f / 480.0f, 0.1f, 100.0f);
         graphics::camera camera{0.0f, 2.0f, 10.0f};
@@ -348,15 +384,15 @@ int main (int argc, char* argv[])
             myShader.uniform("projection").set(projection_matrix);
             myShader.uniform("view").set(view);
             myShader.uniform("model").set(ground_matrix);
-            myShader.uniform("texture").set(0);
-            ground.bind();
-            ground.draw();
-            myShader.uniform("model").set(wall_matrix);
-            wall.bind();
-            wall.draw();
-            myShader.uniform("model").set(sidewall_matrix);
-            sideWall.bind();
-            sideWall.draw();
+            myShader.uniform("texture_albedo").set(0);
+            // ground.bind();
+            // ground.draw();
+            // myShader.uniform("model").set(wall_matrix);
+            // wall.bind();
+            // wall.draw();
+            // myShader.uniform("model").set(sidewall_matrix);
+            // sideWall.bind();
+            // sideWall.draw();
 
             SDL_GL_SwapWindow(window.get());
 

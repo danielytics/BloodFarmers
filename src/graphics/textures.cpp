@@ -67,7 +67,7 @@ GLuint textures::loadArray (const std::vector<std::string>& filenames)
         int w, h, c;
         std::string buffer = helpers::readToString(filename);
         unsigned char* image = stbi_load_from_memory(reinterpret_cast<const unsigned char*>(buffer.c_str()), int(buffer.size()), &w, &h, &c, STBI_rgb_alpha);
-        info("Loaded image '{}', width={} height={} components={}", filename, w, h, c);
+        debug("Loaded image '{}', width={} height={} components={}", filename, w, h, c);
         images.push_back({w, h, c, image});
         max_width = std::max(w, max_width);
         max_height = std::max(h, max_height);
@@ -108,7 +108,7 @@ GLuint textures::loadArray (const std::vector<std::string>& filenames)
         glTexSubImage3D(GL_TEXTURE_2D_ARRAY, 0, 0, 0, index, image.width, image.height, 1, format, GL_UNSIGNED_BYTE, image.data);
         stbi_image_free(image.data);
     }
-    info("Loaded {} images into texture array ({}x{}x{})", images.size(), max_width, max_height, max_components);
+    debug("Loaded {} images into texture array ({}x{}x{})", images.size(), max_width, max_height, max_components);
 
     //Always set reasonable texture parameters
     float aniso = 0.0f;
