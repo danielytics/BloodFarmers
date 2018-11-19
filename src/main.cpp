@@ -43,7 +43,7 @@ void setupPhysFS (const char* argv0)
     PhysFS::init(argv0);
     // Mount game sources to search path
     {
-        std::vector<std::string> paths = {"data/", "game.data"};
+        std::vector<std::string> paths = {"game/", "game.data"};
         for (auto path : paths) {
             PhysFS::mount(path, "/", 1);
         }
@@ -59,7 +59,7 @@ using metrics = semi::static_map<std::string, float, Metrics_tag>;
 
 using Tilesets = std::pair<std::vector<GLuint>, std::map<entt::hashed_string::hash_type, int>>;
 
-const Tilesets loadTilesets (const std::string& config_file)
+const Tilesets loadImagesets (const std::string& config_file)
 {
     std::vector<GLuint> texture_arrays;
     std::map<entt::hashed_string::hash_type, int> texture_units;
@@ -68,18 +68,22 @@ const Tilesets loadTilesets (const std::string& config_file)
         iss.str(helpers::readToString(config_file));
         cpptoml::parser parser{iss};
         std::shared_ptr<cpptoml::table> config = parser.parse();
-        auto tarr = config->get_table_array("tileset");
+        auto tarr = config->get_table_array("imageset");
         int tileset_idx = 0;
-        for (const auto& table : *tarr) {
-            auto name = table->get_as<std::string>("id");
-            auto directory = table->get_as<std::string>("directory");
-            auto pattern = table->get_as<std::string>("file-pattern");
-            auto range = table->get_array_of<int64_t>("file-range");
+        for (const auto& imageset_table : *tarr) {
+            auto name = imageset_table->get_as<std::string>("id");
             auto id = entt::hashed_string{name->data()};
             texture_units[id] = tileset_idx;
             std::vector<std::string> tiles;
-            for (auto i = (*range)[0]; i <= (*range)[1]; ++i) {
-                tiles.push_back(*directory + fmt::format(*pattern, i));
+            
+            auto images = imageset_table->get_table_array("images");
+            for (const auto& image_table : *images) {
+                auto directory = image_table->get_as<std::string>("directory");
+                auto pattern = image_table->get_as<std::string>("file-pattern");
+                auto range = image_table->get_array_of<int64_t>("file-range");
+                for (auto i = (*range)[0]; i <= (*range)[1]; ++i) {
+                    tiles.push_back(*directory + fmt::format(*pattern, i));
+                }
             }
             info("Loading {} images for tileset '{}'", tiles.size(), id);
             glActiveTexture(GL_TEXTURE0 + tileset_idx++);
@@ -169,7 +173,6 @@ std::vector<Surface> loadLevel (const Tilesets& tilesets, const std::string& con
                     textureCoordinates.push_back(glm::vec3(1, 0, layer));
                     textureCoordinates.push_back(glm::vec3(0, 0, layer));
 
-                    info("{},{} -- {},{}", col, row, col+1, row-1);
                     ++col;
                 }
                 --row;
@@ -285,7 +288,7 @@ int main (int argc, char* argv[])
         glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
         glEnable(GL_MULTISAMPLE);
 
-        auto tilesets = loadTilesets("images/tilesets.toml");
+        auto tilesets = loadImagesets("imagesets.toml");
 
         info("Loading shader");
         auto myShader = graphics::shader::load({

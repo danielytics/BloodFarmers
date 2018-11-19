@@ -1,0 +1,18 @@
+[[imageset]]
+id = "floors"
+    [[imageset.images]]
+    directory = "images/tiles/"
+    file-pattern = "floor-{}.png"
+    file-range = [0, 75] # floor-0.png to floor-75.png
+
+    [[imageset.images]]
+    directory = "images/tiles/"
+    file-pattern = "pit-{}.png"
+    file-range = [0, 2]
+
+[[imageset]]
+id = "walls"
+    [[imageset.images]]
+    directory = "images/tiles/"
+    file-pattern = "wall-{}.png"
+    file-range = [0, 32]
