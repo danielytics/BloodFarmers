@@ -1,0 +1,28 @@
+[graphics]
+# Set the window resolution, should be a either a string "<width>x<height>" where <width> and <height> are pixels (eg 640x480) or one of: "720p", "1080p", "1440p"
+resolution = "720p"
+# Fullscreen or windowed? Valid values are: true, false
+fullscreen = false
+# Should vertical sync be enabled? Valid values are: true, false
+vsync = true
+# Should Full Screen Anti Aliasing be enabled? Valid values are: "off", "2x", "4x", "8x", "16x"
+# TODO: probably needs to be replaced with settings for FXAA and other stuff...
+fsaa = "4x"
+# Shuld debug rendering be enabled? Ignored in release builds
+debug = true
+
+# Configure telemetry and logging. This is a development/debug feature that should probably be disabled for release.
+[telemetry]
+# Is logging enabled? Valid values are: "off", "trace", "debug", "info", "warn", "error"
+# In release builds, trace and debug are ignored.
+logging = "debug"
+# Is profiling enabled? valid values are: true, false
+# In release builds, profiling is ignored.
+profiling = false
+
+# Configure the game
+[game]
+# Module files or directories for game data files and assets
+sources = ["sample/"]
+# Development mode. Ignored in release builds, valid values are: true, false
+dev_mode = true

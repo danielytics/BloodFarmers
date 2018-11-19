@@ -1,0 +1,14 @@
+[graphics]
+resolution = "720p"
+fullscreen = false
+vsync = true
+fsaa = "4x"
+debug = true
+
+[telemetry]
+logging = "debug"
+profiling = false
+
+[game]
+sources = ["data/"]
+dev_mode = true

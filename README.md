@@ -61,11 +61,12 @@ You can now run the `BloodFarm` binary from the project root.
 Note that it will fail on startup if the data files are not found in the `data` directory or `game.data` file. You can override this to load the sample game:
 
 ```
-./BloodFarm --load sample
+./BloodFarm --init sample.toml
 ```
 
-You can find the sample game files in `sample/`:
-* `sample/sample.toml` contains the sample game configuration, used to bootstrap the game.
+This will load the sample data instead:
+* `sample.toml` contains the sample game configuration, used to configure the engine.
+* `sample/` directory containing the data files for the sample game.
 
 # License
 
