@@ -1,35 +1,18 @@
 # Blood Farm
 
-A game.
+A game. <add descriptoin of game>
 
-# Dependencies
+<add screenshot of game>
 
-Engine dependencies:
+<add description of engine>
 
-* OpenGL 4.1
-* [EnTT](https://github.com/skypjack/entt) - Entity Component System (MIT License)
-* [SDL2](http://libsdl.org/) - Windowing & Input (ZLIB License)
-* [GLEW](http://glew.sourceforge.net/) - OpenGL extension library (Modified BSD & MIT Licenses)
-* [GLM](https://glm.g-truc.net/0.9.8/index.html) - OpenGL Mathematics library (The Happy Bunny/Modified MIT License)
-* [spdlog](https://github.com/gabime/spdlog) - Fast logging library (MIT License)
-* [LuaJIT](http://luajit.org/luajit.html) - Lua bindings and JIT runtime (MIT License)
-* [FastNoiseSIMD](https://github.com/Auburns/FastNoiseSIMD) - Library of various SIMD-optimised noise functions (MIT License, note: Simplex noise is patent-encumbered when used for texture generation)
-* [PhysicsFS](http://icculus.org/physfs/) - Library for filesystem abstraction (zlib License)
-* [PhysFS++](https://github.com/Ybalrid/physfs-hpp) - C++ wrapper for PhysicsFS (zlib License + [notes](https://github.com/Ybalrid/physfs-hpp/blob/master/LICENSE.txt))
-* [Catch2](https://github.com/catchorg/Catch2) - C++ testing library (Boost Software License)
-* [cpptoml](https://github.com/skystrife/cpptoml) - TOML data file loader (MIT License)
-* [dynamiclinker](https://github.com/Marqin/dynamicLinker) - portable dynamic library loader (MIT License)
-* [stb_image](https://github.com/nothings/stb) - Image loader (Public domain)
-* [semimap](https://github.com/hogliux/semimap) - A semi compile-/run-time associative map container (MIT License)
-* [Bullet Physics](https://github.com/bulletphysics/bullet3) - Physics engine (zlib license)
+## Sample Game
 
-Tooling dependencies:
+<add screenshot of sample game>
 
-* [Assimp](http://assimp.org/) - Asset importer (BSD License)
+<add description of basic components of sample game>
 
-All of the dependencies, except for SDL2, GLEW and OpenGL come packaged as git submodules within this repository, in the `deps` directory.
-
-# Building
+## Building
 
 Make sure you have SDL2 and GLEW installed and clone the BloodFarm repository:
 
@@ -68,7 +51,34 @@ This will load the sample data instead:
 * `sample.toml` contains the sample game configuration, used to configure the engine.
 * `sample/` directory containing the data files for the sample game.
 
-# License
+## Dependencies
+
+Engine dependencies:
+
+* OpenGL 4.1
+* [EnTT](https://github.com/skypjack/entt) - Entity Component System (MIT License)
+* [SDL2](http://libsdl.org/) - Windowing & Input (ZLIB License)
+* [GLEW](http://glew.sourceforge.net/) - OpenGL extension library (Modified BSD & MIT Licenses)
+* [GLM](https://glm.g-truc.net/0.9.8/index.html) - OpenGL Mathematics library (The Happy Bunny/Modified MIT License)
+* [spdlog](https://github.com/gabime/spdlog) - Fast logging library (MIT License)
+* [LuaJIT](http://luajit.org/luajit.html) - Lua bindings and JIT runtime (MIT License)
+* [FastNoiseSIMD](https://github.com/Auburns/FastNoiseSIMD) - Library of various SIMD-optimised noise functions (MIT License, note: Simplex noise is patent-encumbered when used for texture generation)
+* [PhysicsFS](http://icculus.org/physfs/) - Library for filesystem abstraction (zlib License)
+* [PhysFS++](https://github.com/Ybalrid/physfs-hpp) - C++ wrapper for PhysicsFS (zlib License + [notes](https://github.com/Ybalrid/physfs-hpp/blob/master/LICENSE.txt))
+* [Catch2](https://github.com/catchorg/Catch2) - C++ testing library (Boost Software License)
+* [cpptoml](https://github.com/skystrife/cpptoml) - TOML data file loader (MIT License)
+* [dynamiclinker](https://github.com/Marqin/dynamicLinker) - portable dynamic library loader (MIT License)
+* [stb_image](https://github.com/nothings/stb) - Image loader (Public domain)
+* [semimap](https://github.com/hogliux/semimap) - A semi compile-/run-time associative map container (MIT License)
+* [Bullet Physics](https://github.com/bulletphysics/bullet3) - Physics engine (zlib license)
+
+Tooling dependencies:
+
+* [Assimp](http://assimp.org/) - Asset importer (BSD License)
+
+All of the dependencies, except for SDL2, GLEW and OpenGL come packaged as git submodules within this repository, in the `deps` directory.
+
+## License
 
 The Blood Farm game source is released under the terms of the [MIT License](https://github.com/danielytics/BloodFarm/blob/master/LICENSE).
 
