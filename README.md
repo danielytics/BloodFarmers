@@ -41,7 +41,7 @@ make
 
 You can now run the `BloodFarm` binary from the project root.
 
-Note that it will fail on startup if the data files are not found in the `data` directory or `game.data` file. You can override this to load the sample game:
+Note that it will fail on startup if the data files are not found in the `game` directory or `game.data` file. You can override this to load the sample game:
 
 ```
 ./BloodFarm --init sample.toml
@@ -50,6 +50,17 @@ Note that it will fail on startup if the data files are not found in the `data` 
 This will load the sample data instead:
 * `sample.toml` contains the sample game configuration, used to configure the engine.
 * `sample/` directory containing the data files for the sample game.
+
+Alternatively, you can replace the `init.toml` file with the `sample.toml` file.
+
+### Commandline arguments
+
+BloodFarm accepts a number of commandline arguments:
+
+* `-d` or `--debug` - Enables debug rendering (only in debug builds)
+* `-p` or `--profiling` - Enables basic in-engine profiling (only in debug builds)
+* `-l <level>` or `--loglevel <level>` - Sets the log level, valid values for `<level>` are `off`, `error`, `warn`, `info`, `debug`, `trace` (debug and trace are only available in debug builds)
+* `-i <file>` or `--init <file>` - Sets the TOML init file to load, by default loads `init.toml`
 
 ## Dependencies
 
@@ -76,6 +87,7 @@ Engine dependencies:
 Tooling dependencies:
 
 * [Assimp](http://assimp.org/) - Asset importer (BSD License)
+* Python (3+)
 
 All of the dependencies, except for SDL2, GLEW and OpenGL come packaged as git submodules within this repository, in the `deps` directory.
 

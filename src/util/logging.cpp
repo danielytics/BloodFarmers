@@ -30,7 +30,7 @@ void logging::init (const std::string& log_level) {
         {"info", spdlog::level::info},
         {"warn", spdlog::level::warn},
         {"error", spdlog::level::err},
-        {"No", spdlog::level::off},
+        {"off", spdlog::level::off},
     };
     // TODO: Error checking for invalid values of log_level
     spdlog::level::level_enum level = log_levels[log_level];

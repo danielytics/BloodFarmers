@@ -177,17 +177,16 @@ Settings readSettings (int argc, char* argv[])
         ("d,debug", "Enable debug rendering")
         ("p,profiling", "Enable profiling")
 #endif
-        ("l,loglevel", "Log level", cxxopts::value<std::string>()->default_value("off"))
+        ("l,loglevel", "Log level", cxxopts::value<std::string>())
         ("i,init", "Initialisation file", cxxopts::value<std::string>()->default_value("init.toml"));
     auto result = options.parse(argc, argv);
 
     auto config = cpptoml::parse_file(result["init"].as<std::string>());
     auto telemetry = config->get_table("telemetry");
-    std::string log_level = result["loglevel"].as<std::string>();
-    if (log_level == "off") {
+    if (result["loglevel"].count() == 0) {
         settings.log_level = *telemetry->get_as<std::string>("logging");
     } else {
-        settings.log_level = log_level;
+        settings.log_level = result["loglevel"].as<std::string>();
     }
     auto game = config->get_table("game");
     auto sources = game->get_array_of<std::string>("sources");
