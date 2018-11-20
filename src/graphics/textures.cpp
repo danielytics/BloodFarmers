@@ -54,7 +54,7 @@ struct Image
 };
 
 
-GLuint textures::loadArray (const std::vector<std::string>& filenames)
+GLuint textures::loadArray (bool filtering, const std::vector<std::string>& filenames)
 {
     trace_fn();
     GLuint texture = 0;
@@ -89,7 +89,7 @@ GLuint textures::loadArray (const std::vector<std::string>& filenames)
     // Create the texture array
     glGenTextures(1, &texture);
     glBindTexture(GL_TEXTURE_2D_ARRAY, texture);
-    glTexImage3D(GL_TEXTURE_2D_ARRAY, 0, GLint(format),  max_width, max_height, images.size(), 0, format, GL_UNSIGNED_BYTE, nullptr);
+    glTexImage3D(GL_TEXTURE_2D_ARRAY, 0, GL_COMPRESSED_RGBA_S3TC_DXT1_EXT,  max_width, max_height, images.size(), 0, format, GL_UNSIGNED_BYTE, nullptr);
 
     // Load texture data into texture array
     for (unsigned index = 0; index < images.size(); ++index) {
@@ -114,11 +114,16 @@ GLuint textures::loadArray (const std::vector<std::string>& filenames)
     float aniso = 0.0f;
     glGetFloatv(GL_MAX_TEXTURE_MAX_ANISOTROPY_EXT, &aniso);
     glTexParameterf(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MAX_ANISOTROPY_EXT, aniso); 
-    glTexParameteri(GL_TEXTURE_2D_ARRAY,GL_TEXTURE_MIN_FILTER,GL_LINEAR_MIPMAP_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D_ARRAY,GL_TEXTURE_MAG_FILTER,GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D_ARRAY,GL_TEXTURE_WRAP_S,GL_CLAMP_TO_EDGE);
     glTexParameteri(GL_TEXTURE_2D_ARRAY,GL_TEXTURE_WRAP_T,GL_CLAMP_TO_EDGE);
-    glGenerateMipmap(GL_TEXTURE_2D_ARRAY);
+    if (filtering) {
+        glTexParameteri(GL_TEXTURE_2D_ARRAY,GL_TEXTURE_MIN_FILTER,GL_LINEAR_MIPMAP_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D_ARRAY,GL_TEXTURE_MAG_FILTER,GL_LINEAR);
+        glGenerateMipmap(GL_TEXTURE_2D_ARRAY);
+    } else {
+        glTexParameteri(GL_TEXTURE_2D_ARRAY,GL_TEXTURE_MIN_FILTER,GL_NEAREST);
+        glTexParameteri(GL_TEXTURE_2D_ARRAY,GL_TEXTURE_MAG_FILTER,GL_NEAREST);
+    }
 
     return texture;
 }

@@ -29,7 +29,7 @@ GLuint compileAndAttach (GLuint shaderProgram, GLenum shaderType, const std::str
         char* shaderInfoLog = new char[maxLength];
         glGetShaderInfoLog(shader, maxLength, &maxLength, shaderInfoLog );
 
-        fatal("Failed to compile shader:{}\n{}", filename, shaderInfoLog);
+        fatal("Failed to compile shader: {}\n{}", filename, shaderInfoLog);
 
         delete [] shaderInfoLog;
 

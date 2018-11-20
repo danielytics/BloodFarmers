@@ -11,7 +11,7 @@
 
 namespace textures {
     GLuint load (const std::string& filename);
-    GLuint loadArray (const std::vector<std::string>& filenames);
+    GLuint loadArray (bool filtering, const std::vector<std::string>& filenames);
 }
 
 

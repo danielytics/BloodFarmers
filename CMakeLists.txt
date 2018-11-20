@@ -60,6 +60,7 @@ set(SOURCES
     src/main.cpp
     src/graphics/shader.cpp
     src/graphics/textures.cpp
+    src/graphics/imagesets.cpp
     src/util/logging.cpp
     src/util/helpers.cpp
 )

@@ -15,7 +15,7 @@ void logging::init () {
 #ifndef DEBUG_BUILD
     // TODO: Async logging...
 #endif
-    std::string log_level {"debug"};
+    std::string log_level {"info"};
     // bool profiling = false;
     //  using namespace Config;
     //  auto parser = make_parser(

@@ -19,12 +19,11 @@
 #include "util/helpers.h"
 #include "util/logging.h"
 #include "util/clock.h"
+
 #include "graphics/shader.h"
-#include "graphics/textures.h"
 #include "graphics/mesh.h"
 #include "graphics/camera.h"
-
-
+#include "graphics/imagesets.h"
 
 
 std::map<GLenum,std::string> GL_ERROR_STRINGS = {
@@ -36,7 +35,6 @@ std::map<GLenum,std::string> GL_ERROR_STRINGS = {
     {GL_OUT_OF_MEMORY, "GL_OUT_OF_MEMORY"},
     {GL_INVALID_FRAMEBUFFER_OPERATION, "GL_INVALID_FRAMEBUFFER_OPERATION"}
 };
-
 
 void setupPhysFS (const char* argv0)
 {
@@ -55,63 +53,14 @@ struct Metrics_tag {};
 using config = semi::static_map<std::string, int, Config_tag>;
 using metrics = semi::static_map<std::string, float, Metrics_tag>;
 
-#include <spdlog/fmt/fmt.h>
-
-using Tilesets = std::pair<std::vector<GLuint>, std::map<entt::hashed_string::hash_type, int>>;
-
-const Tilesets loadImagesets (const std::string& config_file)
-{
-    std::vector<GLuint> texture_arrays;
-    std::map<entt::hashed_string::hash_type, int> texture_units;
-    try {
-        std::istringstream iss;
-        iss.str(helpers::readToString(config_file));
-        cpptoml::parser parser{iss};
-        std::shared_ptr<cpptoml::table> config = parser.parse();
-        auto tarr = config->get_table_array("imageset");
-        int tileset_idx = 0;
-        for (const auto& imageset_table : *tarr) {
-            auto name = imageset_table->get_as<std::string>("id");
-            auto id = entt::hashed_string{name->data()};
-            texture_units[id] = tileset_idx;
-            std::vector<std::string> tiles;
-            
-            auto images = imageset_table->get_table_array("images");
-            for (const auto& image_table : *images) {
-                auto directory = image_table->get_as<std::string>("directory");
-                auto pattern = image_table->get_as<std::string>("file-pattern");
-                auto range = image_table->get_array_of<int64_t>("file-range");
-                for (auto i = (*range)[0]; i <= (*range)[1]; ++i) {
-                    tiles.push_back(*directory + fmt::format(*pattern, i));
-                }
-            }
-            info("Loading {} images for tileset '{}'", tiles.size(), id);
-            glActiveTexture(GL_TEXTURE0 + tileset_idx++);
-            auto texture_array = textures::loadArray(tiles);
-            glBindTexture(GL_TEXTURE_2D_ARRAY, texture_array);
-            texture_arrays.push_back(texture_array);
-        }
-    }
-    catch (const cpptoml::parse_exception& e) {
-        fatal("Parsing failed: {}", e.what());
-    }
-    return {texture_arrays, texture_units};
-}
-
-void unloadTilesets (const Tilesets& tilesets) {
-    glDeleteTextures(tilesets.first.size(), tilesets.first.data());
-}
-
 class Surface {
 public:
-    Surface(graphics::mesh mesh, glm::mat4 model_matrix, int texture_unit) :
+    Surface(graphics::mesh mesh, int texture_unit) :
         mesh(mesh),
-        model_matrix(std::move(model_matrix)),
         texture_unit(texture_unit)
     {}
 
-    inline void draw (const graphics::uniform& u_model, const graphics::uniform& u_tileset) const {
-        u_model.set(model_matrix);
+    inline void draw (const graphics::uniform& u_tileset) const {
         u_tileset.set(texture_unit);
         mesh.bind();
         mesh.draw();
@@ -123,27 +72,32 @@ public:
 
 private:
     graphics::mesh mesh;
-    glm::mat4 model_matrix;
     int texture_unit;
 };
 
-std::vector<Surface> loadLevel (const Tilesets& tilesets, const std::string& config_file)
+struct TempSurface {
+    std::vector<glm::vec3> vertices;
+    std::vector<glm::vec3> textureCoordinates;
+};
+
+std::vector<Surface> loadLevel (const graphics::Imagesets& imagesets, const std::string& config_file)
 {
-    std::vector<Surface> surfaces;
+    // TODO: Surfaces with the same imageset should be merged into a single mesh
     try {
         std::istringstream iss;
         iss.str(helpers::readToString(config_file));
         cpptoml::parser parser{iss};
         std::shared_ptr<cpptoml::table> config = parser.parse();
         auto tarr = config->get_table_array("surface");
+        std::map<int, TempSurface> surfaces;
         for (const auto& table : *tarr) {
             auto position = table->get_array_of<double>("position");
             auto rotate = table->get_array_of<double>("rotate");
-            auto tileset_name = table->get_as<std::string>("tileset");
+            auto imageset_name = table->get_as<std::string>("imageset");
             auto tile_data = table->get_array_of<cpptoml::array>("tiles");
 
-            auto id = entt::hashed_string{tileset_name->data()};
-            auto tileset_idx = tilesets.second.at(id);
+            auto id = entt::hashed_string{imageset_name->data()};
+            auto imageset_idx = imagesets.get(id);
 
             auto pos = glm::vec3((*position)[0], (*position)[1], (*position)[2]);
             glm::mat4 matrix = glm::mat4(1);
@@ -152,43 +106,45 @@ std::vector<Surface> loadLevel (const Tilesets& tilesets, const std::string& con
             matrix = glm::rotate(matrix, glm::radians(float((*rotate)[1])), glm::vec3(0, 1, 0));
             matrix = glm::rotate(matrix, glm::radians(float((*rotate)[2])), glm::vec3(0, 0, 1));
 
-            std::vector<glm::vec3> vertices;
-            std::vector<glm::vec3> textureCoordinates;
+            auto& surface = surfaces[imageset_idx];
             float row = tile_data->size();
             for (const auto& row_data : *tile_data) {
                 float col = 0;
                 auto col_data = row_data->get_array_of<int64_t>();
                 for (const auto& layer : *col_data) {
-                    vertices.push_back({col,   row  , 0});
-                    vertices.push_back({col,   row-1, 0});
-                    vertices.push_back({col+1, row-1, 0});
-                    vertices.push_back({col+1, row-1, 0});
-                    vertices.push_back({col+1, row  , 0});
-                    vertices.push_back({col,   row  , 0});
+                    surface.vertices.push_back(matrix * glm::vec4{col,   row  , 0, 1});
+                    surface.vertices.push_back(matrix * glm::vec4{col,   row-1, 0, 1});
+                    surface.vertices.push_back(matrix * glm::vec4{col+1, row-1, 0, 1});
+                    surface.vertices.push_back(matrix * glm::vec4{col+1, row-1, 0, 1});
+                    surface.vertices.push_back(matrix * glm::vec4{col+1, row  , 0, 1});
+                    surface.vertices.push_back(matrix * glm::vec4{col,   row  , 0, 1});
 
-                    textureCoordinates.push_back(glm::vec3(0, 0, layer));
-                    textureCoordinates.push_back(glm::vec3(0, 1, layer));
-                    textureCoordinates.push_back(glm::vec3(1, 1, layer));
-                    textureCoordinates.push_back(glm::vec3(1, 1, layer));
-                    textureCoordinates.push_back(glm::vec3(1, 0, layer));
-                    textureCoordinates.push_back(glm::vec3(0, 0, layer));
+                    surface.textureCoordinates.push_back(glm::vec3(0, 0, layer));
+                    surface.textureCoordinates.push_back(glm::vec3(0, 1, layer));
+                    surface.textureCoordinates.push_back(glm::vec3(1, 1, layer));
+                    surface.textureCoordinates.push_back(glm::vec3(1, 1, layer));
+                    surface.textureCoordinates.push_back(glm::vec3(1, 0, layer));
+                    surface.textureCoordinates.push_back(glm::vec3(0, 0, layer));
 
                     ++col;
                 }
                 --row;
             }
-
+        }
+        std::vector<Surface> s;
+        for (auto& entry : surfaces) {
             graphics::mesh mesh;
             mesh.bind();
-            mesh.addBuffer(vertices, true);
-            mesh.addBuffer(textureCoordinates);
-            surfaces.push_back({mesh, matrix, tileset_idx});
+            mesh.addBuffer(entry.second.vertices, true);
+            mesh.addBuffer(entry.second.textureCoordinates);
+            s.push_back({mesh, entry.first});
         }
+        info("Loaded {} combined surfaces", s.size());
+        return s;
     }
     catch (const cpptoml::parse_exception& e) {
         fatal("Parsing failed: {}", e.what());
     }
-    return surfaces;
 }
 
 void unloadLevel (std::vector<Surface>& surfaces)
@@ -198,6 +154,11 @@ void unloadLevel (std::vector<Surface>& surfaces)
     }
     surfaces.clear();
 }
+
+struct SpriteData {
+    glm::vec3 position;
+    int image;
+};
 
 int main (int argc, char* argv[])
 {
@@ -282,30 +243,72 @@ int main (int argc, char* argv[])
         glDisable(GL_STENCIL_TEST);
         glClearDepth(1.0);
         glEnable(GL_CULL_FACE);
-        glDisable(GL_CULL_FACE);
         glCullFace(GL_BACK);
         glFrontFace(GL_CCW);
         glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
         glEnable(GL_MULTISAMPLE);
 
-        auto tilesets = loadImagesets("imagesets.toml");
-
-        info("Loading shader");
-        auto myShader = graphics::shader::load({
-            {graphics::shader::types::Vertex,   "shaders/model.vert"},
-            {graphics::shader::types::Fragment, "shaders/model.frag"},
-        });
-
-        auto level = loadLevel(tilesets, "maps/level.toml");
-
         glm::mat4 projection_matrix = glm::perspective(glm::radians(60.0f), 640.0f / 480.0f, 0.1f, 100.0f);
         graphics::camera camera{0.0f, 2.0f, 10.0f};
 
-        myShader.use();
-        myShader.uniform("projection").set(projection_matrix);
+        graphics::Imagesets imagesets;
+        imagesets.load("imagesets.toml");
 
-        auto model_uniform = myShader.uniform("model");
-        auto texture_uniform = myShader.uniform("texture_albedo");
+        info("Loading shaders");
+        auto tiles_shader = graphics::shader::load({
+            {graphics::shader::types::Vertex,   "shaders/tiles.vert"},
+            {graphics::shader::types::Fragment, "shaders/tiles.frag"},
+        });
+        tiles_shader.use();
+        tiles_shader.uniform("projection").set(projection_matrix);
+        auto u_tile_view_matrix = tiles_shader.uniform("view");
+        auto u_tile_model_matrix = tiles_shader.uniform("model");
+        auto u_tile_texture = tiles_shader.uniform("texture_albedo");
+
+        auto sprites_shader = graphics::shader::load({
+            {graphics::shader::types::Vertex,   "shaders/sprites.vert"},
+            {graphics::shader::types::Fragment, "shaders/sprites.frag"},
+        });
+        sprites_shader.use();
+        sprites_shader.uniform("projection").set(projection_matrix);
+        auto u_sprites_view_matrix = sprites_shader.uniform("view");
+        auto u_sprites_texture = sprites_shader.uniform("texture_albedo");
+        auto u_sprites_position = sprites_shader.uniform("position");
+        auto u_sprites_image = sprites_shader.uniform("image");
+
+        info("Loading level");
+        auto level = loadLevel(imagesets, "maps/level.toml");
+
+        graphics::mesh sprite;
+        sprite.bind();
+        sprite.addBuffer(std::vector<glm::vec3>{
+            {-0.5, 2, 0},
+            {-0.5, 0, 0},
+            { 0.5, 0, 0},
+            { 0.5, 0, 0},
+            { 0.5, 2, 0},
+            {-0.5, 2, 0},
+        }, true);
+        sprite.addBuffer(std::vector<glm::vec2>{
+            {0, 0},
+            {0, 1},
+            {1, 1},
+            {1, 1},
+            {1, 0},
+            {0, 0},
+
+            // {0, 0},
+            // {0, 96},
+            // {48, 96},
+            // {48, 96},
+            // {48, 0},
+            // {0, 0},
+        });
+
+        std::vector<SpriteData> sprites = {
+            {{2.0f, 0, -1.5f}, 0},
+            {{2.5f, 0, -2.2f}, 7},
+        };
 
         SDL_Event event;
         bool running = true;
@@ -392,12 +395,19 @@ int main (int argc, char* argv[])
             glClearColor(0, 0, 0, 1.0f);
             glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-            glEnable(GL_BLEND);
-            myShader.use();
-            myShader.uniform("view").set(view);
-
+            tiles_shader.use();
+            u_tile_view_matrix.set(view);
             for (const auto& surface : level) {
-                surface.draw(model_uniform, texture_uniform);
+                surface.draw(u_tile_texture);
+            }
+
+            sprites_shader.use();
+            u_sprites_view_matrix.set(view);
+            u_sprites_texture.set(imagesets.get("characters"_hs));
+            for (auto sprite_data : sprites) {
+                u_sprites_position.set(sprite_data.position);
+                u_sprites_image.set(sprite_data.image);
+                sprite.draw();
             }
 
             SDL_GL_SwapWindow(window.get());
