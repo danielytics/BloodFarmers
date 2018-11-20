@@ -26,6 +26,8 @@
 #include "graphics/camera.h"
 #include "graphics/imagesets.h"
 
+#include "graphics/generators/surfaces.h"
+
 
 std::map<GLenum,std::string> GL_ERROR_STRINGS = {
     {GL_INVALID_ENUM, "GL_INVALID_ENUM"},
@@ -49,96 +51,9 @@ void setupPhysFS (const char* argv0, std::vector<std::string> sourcePaths)
     }
 }
 
-struct Config_tag {};
-struct Metrics_tag {};
-using config = semi::static_map<std::string, int, Config_tag>;
-using metrics = semi::static_map<std::string, float, Metrics_tag>;
-
-class Surface {
-public:
-    Surface(graphics::mesh mesh, int texture_unit) :
-        mesh(mesh),
-        texture_unit(texture_unit)
-    {}
-
-    inline void draw (const graphics::uniform& u_tileset) const {
-        u_tileset.set(texture_unit);
-        mesh.bind();
-        mesh.draw();
-    }
-
-    inline void unload () {
-        mesh.unload();
-    }
-
-private:
-    graphics::mesh mesh;
-    int texture_unit;
-};
-
-class MeshGenerator {
-    struct TempSurface {
-        std::vector<glm::vec3> vertices;
-        std::vector<glm::vec3> textureCoordinates;
-    };
-public:
-    MeshGenerator (const graphics::Imagesets& imagesets) : imagesets(imagesets) {
-
-    }
-
-    void newSurface (const entt::hashed_string& id, float num_rows) {
-        imageset_idx = imagesets.get(id);
-        row = num_rows;
-    }
-
-    template <typename T, typename VertexTransformFn>
-    void addRow (const std::vector<T> cells, VertexTransformFn vertexTransform) {
-        auto& surface = surface_map[imageset_idx];
-        float col = 0;
-        for (const auto& layer : cells) {
-            surface.vertices.push_back(vertexTransform(glm::vec4{col,   row  , 0, 1}));
-            surface.vertices.push_back(vertexTransform(glm::vec4{col,   row-1, 0, 1}));
-            surface.vertices.push_back(vertexTransform(glm::vec4{col+1, row-1, 0, 1}));
-            surface.vertices.push_back(vertexTransform(glm::vec4{col+1, row-1, 0, 1}));
-            surface.vertices.push_back(vertexTransform(glm::vec4{col+1, row  , 0, 1}));
-            surface.vertices.push_back(vertexTransform(glm::vec4{col,   row  , 0, 1}));
-
-            surface.textureCoordinates.push_back(glm::vec3(0, 0, layer));
-            surface.textureCoordinates.push_back(glm::vec3(0, 1, layer));
-            surface.textureCoordinates.push_back(glm::vec3(1, 1, layer));
-            surface.textureCoordinates.push_back(glm::vec3(1, 1, layer));
-            surface.textureCoordinates.push_back(glm::vec3(1, 0, layer));
-            surface.textureCoordinates.push_back(glm::vec3(0, 0, layer));
-
-            ++col;
-        }
-        --row;
-    }
-
-    std::vector<Surface> complete () {
-        std::vector<Surface> surfaces;
-        for (const auto& entry : surface_map) {
-            graphics::mesh mesh;
-            mesh.bind();
-            mesh.addBuffer(entry.second.vertices, true);
-            mesh.addBuffer(entry.second.textureCoordinates);
-            surfaces.push_back({mesh, entry.first});
-        }
-        info("Loaded {} combined surfaces", surfaces.size());
-        return surfaces;
-    }
-
-private:
-    const graphics::Imagesets& imagesets;
-    std::map<int, TempSurface> surface_map;
-    // Per-surface temporary data
-    int imageset_idx;
-    float row;
-};
-
-std::vector<Surface> loadLevel (const graphics::Imagesets& imagesets, const std::string& config_file)
+std::vector<graphics::Surface> loadLevel (const graphics::Imagesets& imagesets, const std::string& config_file)
 {
-    MeshGenerator generator(imagesets);
+    graphics::generators::SurfacesGen generator(imagesets);
     try {
         std::istringstream iss;
         iss.str(helpers::readToString(config_file));
@@ -171,7 +86,7 @@ std::vector<Surface> loadLevel (const graphics::Imagesets& imagesets, const std:
     }
 }
 
-void unloadLevel (std::vector<Surface>& surfaces)
+void unloadLevel (std::vector<graphics::Surface>& surfaces)
 {
     for (auto& surface : surfaces) {
         surface.unload();
