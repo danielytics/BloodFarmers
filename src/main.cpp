@@ -76,29 +76,80 @@ private:
     int texture_unit;
 };
 
-struct TempSurface {
-    std::vector<glm::vec3> vertices;
-    std::vector<glm::vec3> textureCoordinates;
+class MeshGenerator {
+    struct TempSurface {
+        std::vector<glm::vec3> vertices;
+        std::vector<glm::vec3> textureCoordinates;
+    };
+public:
+    MeshGenerator (const graphics::Imagesets& imagesets) : imagesets(imagesets) {
+
+    }
+
+    void newSurface (const entt::hashed_string& id, float num_rows) {
+        imageset_idx = imagesets.get(id);
+        row = num_rows;
+    }
+
+    template <typename T, typename VertexTransformFn>
+    void addRow (const std::vector<T> cells, VertexTransformFn vertexTransform) {
+        auto& surface = surface_map[imageset_idx];
+        float col = 0;
+        for (const auto& layer : cells) {
+            surface.vertices.push_back(vertexTransform(glm::vec4{col,   row  , 0, 1}));
+            surface.vertices.push_back(vertexTransform(glm::vec4{col,   row-1, 0, 1}));
+            surface.vertices.push_back(vertexTransform(glm::vec4{col+1, row-1, 0, 1}));
+            surface.vertices.push_back(vertexTransform(glm::vec4{col+1, row-1, 0, 1}));
+            surface.vertices.push_back(vertexTransform(glm::vec4{col+1, row  , 0, 1}));
+            surface.vertices.push_back(vertexTransform(glm::vec4{col,   row  , 0, 1}));
+
+            surface.textureCoordinates.push_back(glm::vec3(0, 0, layer));
+            surface.textureCoordinates.push_back(glm::vec3(0, 1, layer));
+            surface.textureCoordinates.push_back(glm::vec3(1, 1, layer));
+            surface.textureCoordinates.push_back(glm::vec3(1, 1, layer));
+            surface.textureCoordinates.push_back(glm::vec3(1, 0, layer));
+            surface.textureCoordinates.push_back(glm::vec3(0, 0, layer));
+
+            ++col;
+        }
+        --row;
+    }
+
+    std::vector<Surface> complete () {
+        std::vector<Surface> surfaces;
+        for (const auto& entry : surface_map) {
+            graphics::mesh mesh;
+            mesh.bind();
+            mesh.addBuffer(entry.second.vertices, true);
+            mesh.addBuffer(entry.second.textureCoordinates);
+            surfaces.push_back({mesh, entry.first});
+        }
+        info("Loaded {} combined surfaces", surfaces.size());
+        return surfaces;
+    }
+
+private:
+    const graphics::Imagesets& imagesets;
+    std::map<int, TempSurface> surface_map;
+    // Per-surface temporary data
+    int imageset_idx;
+    float row;
 };
 
 std::vector<Surface> loadLevel (const graphics::Imagesets& imagesets, const std::string& config_file)
 {
-    // TODO: Surfaces with the same imageset should be merged into a single mesh
+    MeshGenerator generator(imagesets);
     try {
         std::istringstream iss;
         iss.str(helpers::readToString(config_file));
         cpptoml::parser parser{iss};
         std::shared_ptr<cpptoml::table> config = parser.parse();
         auto tarr = config->get_table_array("surface");
-        std::map<int, TempSurface> surfaces;
         for (const auto& table : *tarr) {
             auto position = table->get_array_of<double>("position");
             auto rotate = table->get_array_of<double>("rotate");
             auto imageset_name = table->get_as<std::string>("imageset");
             auto tile_data = table->get_array_of<cpptoml::array>("tiles");
-
-            auto id = entt::hashed_string{imageset_name->data()};
-            auto imageset_idx = imagesets.get(id);
 
             auto pos = glm::vec3((*position)[0], (*position)[1], (*position)[2]);
             glm::mat4 matrix = glm::mat4(1);
@@ -107,41 +158,13 @@ std::vector<Surface> loadLevel (const graphics::Imagesets& imagesets, const std:
             matrix = glm::rotate(matrix, glm::radians(float((*rotate)[1])), glm::vec3(0, 1, 0));
             matrix = glm::rotate(matrix, glm::radians(float((*rotate)[2])), glm::vec3(0, 0, 1));
 
-            auto& surface = surfaces[imageset_idx];
-            float row = tile_data->size();
+            generator.newSurface(entt::hashed_string{imageset_name->data()}, tile_data->size());
             for (const auto& row_data : *tile_data) {
-                float col = 0;
                 auto col_data = row_data->get_array_of<int64_t>();
-                for (const auto& layer : *col_data) {
-                    surface.vertices.push_back(matrix * glm::vec4{col,   row  , 0, 1});
-                    surface.vertices.push_back(matrix * glm::vec4{col,   row-1, 0, 1});
-                    surface.vertices.push_back(matrix * glm::vec4{col+1, row-1, 0, 1});
-                    surface.vertices.push_back(matrix * glm::vec4{col+1, row-1, 0, 1});
-                    surface.vertices.push_back(matrix * glm::vec4{col+1, row  , 0, 1});
-                    surface.vertices.push_back(matrix * glm::vec4{col,   row  , 0, 1});
-
-                    surface.textureCoordinates.push_back(glm::vec3(0, 0, layer));
-                    surface.textureCoordinates.push_back(glm::vec3(0, 1, layer));
-                    surface.textureCoordinates.push_back(glm::vec3(1, 1, layer));
-                    surface.textureCoordinates.push_back(glm::vec3(1, 1, layer));
-                    surface.textureCoordinates.push_back(glm::vec3(1, 0, layer));
-                    surface.textureCoordinates.push_back(glm::vec3(0, 0, layer));
-
-                    ++col;
-                }
-                --row;
+                generator.addRow<int64_t>(*col_data, [&matrix](auto vec){return matrix * vec;});
             }
         }
-        std::vector<Surface> s;
-        for (auto& entry : surfaces) {
-            graphics::mesh mesh;
-            mesh.bind();
-            mesh.addBuffer(entry.second.vertices, true);
-            mesh.addBuffer(entry.second.textureCoordinates);
-            s.push_back({mesh, entry.first});
-        }
-        info("Loaded {} combined surfaces", s.size());
-        return s;
+        return generator.complete();
     }
     catch (const cpptoml::parse_exception& e) {
         fatal("Parsing failed: {}", e.what());

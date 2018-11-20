@@ -23,7 +23,7 @@ public:
 
     void unload ();
 
-    inline int get (entt::hashed_string::hash_type id) const {
+    inline int get (const entt::hashed_string::hash_type& id) const {
         return imagesets.at(id);
     }
 
