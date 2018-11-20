@@ -6,7 +6,7 @@ fsaa = "4x"
 debug = true
 
 [telemetry]
-logging = "debug"
+logging = "info"
 profiling = false
 
 [game]

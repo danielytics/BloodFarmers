@@ -11,6 +11,7 @@
 #include <physfs.hpp>
 #include <cpptoml.h>
 #include <entt/entt.hpp>
+#include <cxxopts.hpp>
 
 #include <functional>
 #include <cmath>
@@ -36,13 +37,13 @@ std::map<GLenum,std::string> GL_ERROR_STRINGS = {
     {GL_INVALID_FRAMEBUFFER_OPERATION, "GL_INVALID_FRAMEBUFFER_OPERATION"}
 };
 
-void setupPhysFS (const char* argv0)
+void setupPhysFS (const char* argv0, std::vector<std::string> sourcePaths)
 {
     PhysFS::init(argv0);
     // Mount game sources to search path
     {
-        std::vector<std::string> paths = {"game/", "game.data"};
-        for (auto path : paths) {
+        for (auto path : sourcePaths) {
+            debug("Adding {} to search path", path);
             PhysFS::mount(path, "/", 1);
         }
     }
@@ -160,12 +161,47 @@ struct SpriteData {
     int image;
 };
 
+struct Settings {
+    std::vector<std::string> sources;
+    std::string log_level;
+
+    bool start;
+};
+
+Settings readSettings (int argc, char* argv[])
+{
+    Settings settings;
+    cxxopts::Options options("BloodFarm", "Game Engine");
+    options.add_options()
+#ifdef DEBUG_BUILD
+        ("d,debug", "Enable debug rendering")
+        ("p,profiling", "Enable profiling")
+#endif
+        ("l,loglevel", "Log level", cxxopts::value<std::string>()->default_value("off"))
+        ("i,init", "Initialisation file", cxxopts::value<std::string>()->default_value("init.toml"));
+    auto result = options.parse(argc, argv);
+
+    auto config = cpptoml::parse_file(result["init"].as<std::string>());
+    auto telemetry = config->get_table("telemetry");
+    std::string log_level = result["loglevel"].as<std::string>();
+    if (log_level == "off") {
+        settings.log_level = *telemetry->get_as<std::string>("logging");
+    } else {
+        settings.log_level = log_level;
+    }
+    auto game = config->get_table("game");
+    auto sources = game->get_array_of<std::string>("sources");
+    for (const auto& source : *sources) {
+        settings.sources.push_back(source);
+    }
+    return settings;
+}
+
 int main (int argc, char* argv[])
 {
-    logging::init();
-    info("setting up physicsfs");
-    setupPhysFS(argv[0]);
-    info("setting up SDL");
+    Settings settings = readSettings(argc, argv);
+    logging::init(settings.log_level);
+    setupPhysFS(argv[0], settings.sources);
     try {
         if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_GAMECONTROLLER) < 0)
         {

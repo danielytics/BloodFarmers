@@ -18,7 +18,7 @@ public:
     Imagesets();
     ~Imagesets();
 
-    void load (entt::hashed_string::hash_type id, bool textureFiltering, const std::vector<std::string>& filenames);
+    void load (const entt::hashed_string& id, bool textureFiltering, const std::vector<std::string>& filenames);
     void load (const std::string& configFilename);
 
     void unload ();

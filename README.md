@@ -71,6 +71,7 @@ Engine dependencies:
 * [stb_image](https://github.com/nothings/stb) - Image loader (Public domain)
 * [semimap](https://github.com/hogliux/semimap) - A semi compile-/run-time associative map container (MIT License)
 * [Bullet Physics](https://github.com/bulletphysics/bullet3) - Physics engine (zlib license)
+* [cxxopts](https://github.com/jarro2783/cxxopts) - Lightweight C++ command line option parser (MIT License)
 
 Tooling dependencies:
 

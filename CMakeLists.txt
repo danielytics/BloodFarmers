@@ -107,6 +107,7 @@ target_include_directories(BloodFarm
         ${PROJECT_SOURCE_DIR}/deps/glm
         ${PROJECT_SOURCE_DIR}/deps/semimap
         ${PROJECT_SOURCE_DIR}/deps/physfs-hpp/include 
+        ${PROJECT_SOURCE_DIR}/deps/cxxopts/include
 )
 
 if(NOT CMAKE_BUILD_TYPE)

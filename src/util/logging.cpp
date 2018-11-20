@@ -8,14 +8,13 @@
 bool tracing::profiling_enabled = false;;
 #endif
 
-void logging::init () {
+void logging::init (const std::string& log_level) {
     // Async logging in release mode, sync logging in debug mode
     // In a debug build, we want to make sure everything gets logged before a crash
     // In a release build, we would like things to be logged, but performance is more important
 #ifndef DEBUG_BUILD
     // TODO: Async logging...
 #endif
-    std::string log_level {"info"};
     // bool profiling = false;
     //  using namespace Config;
     //  auto parser = make_parser(

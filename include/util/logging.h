@@ -7,7 +7,7 @@
 #include <string>
 
 namespace logging {
-    void init ();
+    void init (const std::string& log_level);
     void term ();
 }
 

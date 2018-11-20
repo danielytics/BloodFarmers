@@ -31,3 +31,6 @@
 [submodule "deps/bullet3"]
 	path = deps/bullet3
 	url = git@github.com:bulletphysics/bullet3.git
+[submodule "deps/cxxopts"]
+	path = deps/cxxopts
+	url = git@github.com:jarro2783/cxxopts.git

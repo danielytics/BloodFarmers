@@ -17,7 +17,7 @@ graphics::Imagesets::~Imagesets()
     unload();
 }
 
-void graphics::Imagesets::load (entt::hashed_string::hash_type id, bool textureFiltering, const std::vector<std::string>& filenames)
+void graphics::Imagesets::load (const entt::hashed_string& id, bool textureFiltering, const std::vector<std::string>& filenames)
 {
     info("Loading {} images for tileset '{}'", filenames.size(), id);
     int imageset_idx = texture_arrays.size();
