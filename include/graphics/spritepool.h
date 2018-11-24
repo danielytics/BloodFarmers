@@ -25,7 +25,7 @@ public:
     void init (const graphics::shader& spriteShader, int texture_unit);
     void update (const std::vector<Sprite>& sprites);
 
-    void render (const math::frustum& frustum);
+    void render ();
 
 private:
     std::vector<Sprite> sortedBuffer;

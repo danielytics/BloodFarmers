@@ -140,7 +140,7 @@ target_compile_options(
     BloodFarm
     PUBLIC $<$<AND:$<CONFIG:Debug>,$<NOT:$<CXX_COMPILER_ID:MSVC>>>:-O0 -g>
     # it seems that -O3 ruins a bit the performance when using clang ...
-    PUBLIC $<$<AND:$<CONFIG:Release>,$<CXX_COMPILER_ID:Clang>>:-O2>
+    PUBLIC $<$<AND:$<CONFIG:Release>,$<CXX_COMPILER_ID:Clang>>:-O2 -Rpass=inline -flto=thin>
     # ... on the other side, GCC is incredibly comfortable with it.
     PUBLIC $<$<AND:$<CONFIG:Release>,$<CXX_COMPILER_ID:GNU>>:-O3>
 )

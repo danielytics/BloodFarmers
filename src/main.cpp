@@ -32,6 +32,8 @@
 
 #include "graphics/generators/surfaces.h"
 
+#include "ecs/system.h"
+
 
 std::map<GLenum,std::string> GL_ERROR_STRINGS = {
     {GL_INVALID_ENUM, "GL_INVALID_ENUM"},
@@ -131,6 +133,70 @@ Settings readSettings (int argc, char* argv[])
         settings.sources.push_back(source);
     }
     return settings;
+}
+
+namespace components {
+
+struct position {
+    glm::vec3 position;
+};
+struct sprite {
+    float image;
+};
+struct bitmap_animation {
+    float base_image;
+    float max_frames;
+    float current_frame;
+    float start_time;
+    float animation_speed;
+};
+
+}
+
+namespace systems {
+
+class sprite_render_system : public ecs::base_system<sprite_render_system, components::sprite, components::position> {
+public:
+    sprite_render_system (graphics::SpritePool& pool, graphics::shader& shader)
+        : sprite_pool(pool)
+        , spritepool_shader(shader)
+    {
+        u_spritepool_view_matrix = shader.uniform("view");
+    }
+
+    ~sprite_render_system() noexcept = default;
+
+    void setView (const glm::mat4 view) {
+        view_matrix = view;
+    }
+
+    void update (ecs::entity, const components::sprite& sprite, const components::position& position) {
+        // gather commands for renderer
+        spheres.push_back({position.position, sprite.image});
+    }
+
+    void post () {
+        std::size_t num_objects = spheres.size();
+
+        sprite_pool.update(spheres);
+        spritepool_shader.use();
+        u_spritepool_view_matrix.set(view_matrix);
+        sprite_pool.render();
+
+        // reset for next frame
+        spheres = {};
+        // next frame will likely have the same number of sprites to render
+        spheres.reserve(num_objects);
+    }
+
+private:
+    std::vector<graphics::Sprite> spheres; // x, y, z, radius
+    graphics::SpritePool& sprite_pool;
+    graphics::shader& spritepool_shader;
+    graphics::uniform u_spritepool_view_matrix;
+    glm::mat4 view_matrix;
+};
+
 }
 
 int main (int argc, char* argv[])
@@ -255,6 +321,13 @@ int main (int argc, char* argv[])
 
         graphics::SpritePool spritePool;
         spritePool.init(spritepool_shader, imagesets.get("characters"_hs));
+        ecs::registry_type registry;
+
+        auto sprite_render_system = new systems::sprite_render_system(spritePool, spritepool_shader);
+        auto systems = std::vector<ecs::system*>{
+            sprite_render_system
+        };
+
         std::vector<graphics::Sprite> sprites = {
             {{ 1.0f, 0, -1.0f}, 0},
             {{ 3.0f, 0, -2.0f}, 6},
@@ -267,6 +340,12 @@ int main (int argc, char* argv[])
             {{ 3.5f, 0, -9.0f}, 4},
             {{ 2.5f, 0, -4.0f}, 10},
         };
+
+        for (auto sprite : sprites) {
+            auto entity = registry.create();
+            registry.assign<components::position>(entity, sprite.position);
+            registry.assign<components::sprite>(entity, sprite.image);
+        }
 
         // {
         //     std::random_device rd;
@@ -355,8 +434,6 @@ int main (int argc, char* argv[])
                 };
             }
 
-            spritePool.update(sprites);
-
             if (current_button_states[SDL_CONTROLLER_BUTTON_DPAD_UP]) {
                 camera.move(graphics::camera::Movement::UP_DOWN, 5.0f);
             }
@@ -388,6 +465,8 @@ int main (int argc, char* argv[])
 
             auto frustum = math::frustum(projection_view_matrix);
 
+            sprite_render_system->setView(view_matrix);
+
             // glClearColor(0.3f, 0.3f, 0.3f, 1.0f);
             glClearColor(0, 0, 0, 1.0f);
             glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -398,11 +477,9 @@ int main (int argc, char* argv[])
                 surface.draw(u_tile_texture);
             }
 
-            spritepool_shader.use();
-            u_spritepool_billboarding.set(billboarded_sprites);
-            u_spritepool_billboarding_spherical.set(spherical_billboarding);
-            u_spritepool_view_matrix.set(view_matrix);
-            spritePool.render(frustum);
+            for (auto system : systems) {
+                system->run(registry);
+            }
 
             SDL_GL_SwapWindow(window.get());
 

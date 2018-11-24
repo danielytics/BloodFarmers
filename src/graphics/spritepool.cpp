@@ -171,7 +171,7 @@ std::size_t graphics::SpritePool::cull_sprites (const math::frustum& frustum, st
 }
 
 
-void graphics::SpritePool::render (const math::frustum& frustum)
+void graphics::SpritePool::render ()
 {
     // visibleSprites = cull_sprites(frustum, unsortedBuffer);
     visibleSprites = unsortedBuffer.size();
