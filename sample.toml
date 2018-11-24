@@ -23,6 +23,6 @@ profiling = false
 # Configure the game
 [game]
 # Module files or directories for game data files and assets
-sources = ["sample/"]
+sources = ["sample/", "common/"]
 # Development mode. Ignored in release builds, valid values are: true, false
 dev_mode = true

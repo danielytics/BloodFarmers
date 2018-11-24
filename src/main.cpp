@@ -16,15 +16,19 @@
 #include <functional>
 #include <cmath>
 #include <sstream>
+#include <random>
 
 #include "util/helpers.h"
 #include "util/logging.h"
 #include "util/clock.h"
 
+#include "math/basic.h"
+
 #include "graphics/shader.h"
 #include "graphics/mesh.h"
 #include "graphics/camera.h"
 #include "graphics/imagesets.h"
+#include "graphics/spritepool.h"
 
 #include "graphics/generators/surfaces.h"
 
@@ -93,11 +97,6 @@ void unloadLevel (std::vector<graphics::Surface>& surfaces)
     }
     surfaces.clear();
 }
-
-struct SpriteData {
-    glm::vec3 position;
-    int image;
-};
 
 struct Settings {
     std::vector<std::string> sources;
@@ -174,6 +173,7 @@ int main (int argc, char* argv[])
         on_exit_scope = [&context](){ SDL_GL_DeleteContext(context); };
         info("Created window with OpenGL {}", glGetString(GL_VERSION));
 
+        glm::vec4 viewport = glm::vec4(0, 0, 640, 480);
         glViewport(0, 0, int(640), int(480));
 
         // Load OpenGL 3+ functions
@@ -188,13 +188,13 @@ int main (int argc, char* argv[])
         glGetIntegerv(GL_MAX_GEOMETRY_TEXTURE_IMAGE_UNITS, &max_geom_tex);
         glGetIntegerv(GL_MAX_TEXTURE_IMAGE_UNITS, &max_frag_tex);
         glGetIntegerv(GL_MAX_TEXTURE_SIZE, &max_tex_size);
-        debug("Texture limits: {} combined units, {}/{}/{} vs/gs/fs units, {} array layers, {}x{} max size", max_combined_tex, max_vert_tex, max_geom_tex, max_frag_tex, max_tex_layers, max_tex_size, max_tex_size);
+        info("Texture limits: {} combined units, {}/{}/{} vs/gs/fs units, {} array layers, {}x{} max size", max_combined_tex, max_vert_tex, max_geom_tex, max_frag_tex, max_tex_layers, max_tex_size, max_tex_size);
         int max_vert_uniform_vec, max_frag_uniform_vec, max_varying_vec, max_vertex_attribs;
         glGetIntegerv(GL_MAX_VERTEX_UNIFORM_VECTORS, &max_vert_uniform_vec);
         glGetIntegerv(GL_MAX_FRAGMENT_UNIFORM_VECTORS, &max_frag_uniform_vec);
         glGetIntegerv(GL_MAX_VARYING_VECTORS, &max_varying_vec);
         glGetIntegerv(GL_MAX_VERTEX_ATTRIBS, &max_vertex_attribs);
-        debug("Shader limits: {} vertex attributes, {} varying vectors, {} vertex vectors, {} fragment vectors", max_vertex_attribs, max_varying_vec, max_vert_uniform_vec, max_frag_uniform_vec);
+        info("Shader limits: {} vertex attributes, {} varying vectors, {} vertex vectors, {} fragment vectors", max_vertex_attribs, max_varying_vec, max_vert_uniform_vec, max_frag_uniform_vec);
 #endif
 
         SDL_GameController* gameController;
@@ -222,7 +222,7 @@ int main (int argc, char* argv[])
         glEnable(GL_MULTISAMPLE);
 
         glm::mat4 projection_matrix = glm::perspective(glm::radians(60.0f), 640.0f / 480.0f, 0.1f, 100.0f);
-        graphics::camera camera{0.0f, 2.0f, 10.0f};
+        graphics::camera camera;
 
         graphics::Imagesets imagesets;
         imagesets.load("imagesets.toml");
@@ -233,55 +233,50 @@ int main (int argc, char* argv[])
             {graphics::shader::types::Fragment, "shaders/tiles.frag"},
         });
         tiles_shader.use();
-        tiles_shader.uniform("projection").set(projection_matrix);
-        auto u_tile_view_matrix = tiles_shader.uniform("view");
+        auto u_tile_pv_matrix = tiles_shader.uniform("projection_view");
         auto u_tile_model_matrix = tiles_shader.uniform("model");
         auto u_tile_texture = tiles_shader.uniform("texture_albedo");
 
-        auto sprites_shader = graphics::shader::load({
-            {graphics::shader::types::Vertex,   "shaders/sprites.vert"},
-            {graphics::shader::types::Fragment, "shaders/sprites.frag"},
+        auto spritepool_shader = graphics::shader::load({
+            {graphics::shader::types::Vertex,   "shaders/spritepool.vert"},
+            {graphics::shader::types::Fragment, "shaders/spritepool.frag"},
         });
-        sprites_shader.use();
-        sprites_shader.uniform("projection").set(projection_matrix);
-        auto u_sprites_view_matrix = sprites_shader.uniform("view");
-        auto u_sprites_texture = sprites_shader.uniform("texture_albedo");
-        auto u_sprites_position = sprites_shader.uniform("position");
-        auto u_sprites_image = sprites_shader.uniform("image");
+        spritepool_shader.use();
+        spritepool_shader.uniform("projection").set(projection_matrix);
+        auto u_spritepool_view_matrix = spritepool_shader.uniform("view");
+        auto u_spritepool_billboarding = spritepool_shader.uniform("billboarding");
+        auto u_spritepool_billboarding_spherical = spritepool_shader.uniform("spherical_billboarding");
+
+        bool billboarded_sprites = false;
+        bool spherical_billboarding = false;
 
         info("Loading level");
         auto level = loadLevel(imagesets, "maps/level.toml");
 
-        graphics::mesh sprite;
-        sprite.bind();
-        sprite.addBuffer(std::vector<glm::vec3>{
-            {-0.5, 2, 0},
-            {-0.5, 0, 0},
-            { 0.5, 0, 0},
-            { 0.5, 0, 0},
-            { 0.5, 2, 0},
-            {-0.5, 2, 0},
-        }, true);
-        sprite.addBuffer(std::vector<glm::vec2>{
-            {0, 0},
-            {0, 1},
-            {1, 1},
-            {1, 1},
-            {1, 0},
-            {0, 0},
-
-            // {0, 0},
-            // {0, 96},
-            // {48, 96},
-            // {48, 96},
-            // {48, 0},
-            // {0, 0},
-        });
-
-        std::vector<SpriteData> sprites = {
-            {{2.0f, 0, -1.5f}, 0},
-            {{2.5f, 0, -2.2f}, 7},
+        graphics::SpritePool spritePool;
+        spritePool.init(spritepool_shader, imagesets.get("characters"_hs));
+        std::vector<graphics::Sprite> sprites = {
+            {{ 1.0f, 0, -1.0f}, 0},
+            {{ 3.0f, 0, -2.0f}, 6},
+            {{ 4.0f, 0, -3.0f}, 12},
+            {{ 6.5f, 0, -4.0f}, 18},
+            {{ 8.0f, 0, -3.0f}, 1},
+            {{10.0f, 0, -2.0f}, 7},
+            {{12.0f, 0, -1.0f}, 13},
+            {{14.0f, 0, -2.0f}, 19},
+            {{ 3.5f, 0, -9.0f}, 4},
+            {{ 2.5f, 0, -4.0f}, 10},
         };
+
+        // {
+        //     std::random_device rd;
+        //     std::mt19937 mt(rd());
+        //     std::uniform_real_distribution<float> dist(-50.0f, 50.0f);
+        //     std::uniform_real_distribution<float> rnd(0.0f, 23.0f);
+        //     for (unsigned i=0; i<1000; ++i) {
+        //         sprites.push_back({{dist(mt), 0, dist(mt)-50.0f},rnd(mt)});
+        //     }
+        // }
 
         SDL_Event event;
         bool running = true;
@@ -292,6 +287,8 @@ int main (int argc, char* argv[])
         auto start_time = Clock::now();
         auto previous_time = start_time;
         auto current_time = start_time;
+        long total_frames = 0;
+        bool buttons_dirty = false;
 
         Uint8 current_button_states[SDL_CONTROLLER_BUTTON_MAX];
         Uint8 prev_button_states[SDL_CONTROLLER_BUTTON_MAX];
@@ -302,6 +299,13 @@ int main (int argc, char* argv[])
         do {
             trace_block("gameloop");
             camera.beginFrame(frame_time);
+
+            if (buttons_dirty) {
+                buttons_dirty = false;
+                for (std::size_t i=0; i<SDL_CONTROLLER_BUTTON_MAX; ++i) {
+                    prev_button_states[i] = current_button_states[i];
+                }
+            }
 
             // Gather and dispatch input
             while (SDL_PollEvent(&event))
@@ -333,8 +337,8 @@ int main (int argc, char* argv[])
                         break;
                     case SDL_CONTROLLERBUTTONDOWN:
                     case SDL_CONTROLLERBUTTONUP:
-                        prev_button_states[event.cbutton.button] = current_button_states[event.cbutton.button];
                         current_button_states[event.cbutton.button] = event.cbutton.state;
+                        buttons_dirty = true;
                         break;
                     case SDL_CONTROLLERAXISMOTION:
                     {
@@ -351,37 +355,54 @@ int main (int argc, char* argv[])
                 };
             }
 
+            spritePool.update(sprites);
 
-            camera.panX(axis_values[SDL_CONTROLLER_AXIS_LEFTX] * 5.0f);
-            camera.panZ(axis_values[SDL_CONTROLLER_AXIS_LEFTY] * 5.0f);
+            if (current_button_states[SDL_CONTROLLER_BUTTON_DPAD_UP]) {
+                camera.move(graphics::camera::Movement::UP_DOWN, 5.0f);
+            }
+            if (current_button_states[SDL_CONTROLLER_BUTTON_DPAD_DOWN]) {
+                camera.move(graphics::camera::Movement::UP_DOWN, -5.0f);
+            }
             if (current_button_states[SDL_CONTROLLER_BUTTON_LEFTSHOULDER]) {
-                camera.tiltBy(-45.0f);
+                camera.move(graphics::camera::Movement::FORWARD_BACK, axis_values[SDL_CONTROLLER_AXIS_LEFTY] * 5.0f);
+                camera.move(graphics::camera::Movement::LEFT_RIGHT, axis_values[SDL_CONTROLLER_AXIS_LEFTX] * 5.0f);
+            } else {
+                camera.pan({axis_values[SDL_CONTROLLER_AXIS_LEFTX] * 5.0f, 0, axis_values[SDL_CONTROLLER_AXIS_LEFTY] * 5.0f});
             }
-            if (current_button_states[SDL_CONTROLLER_BUTTON_RIGHTSHOULDER]) {
-                camera.tiltBy(45.0f);
+            camera.orient(axis_values[SDL_CONTROLLER_AXIS_RIGHTX] * 5.0f, -axis_values[SDL_CONTROLLER_AXIS_RIGHTY] * 5.0f);
+            // if (current_button_states[SDL_CONTROLLER_BUTTON_LEFTSHOULDER]) {
+            //     camera.tiltBy(-45.0f);
+            // }
+            // if (current_button_states[SDL_CONTROLLER_BUTTON_RIGHTSHOULDER]) {
+            //     camera.tiltBy(45.0f);
+            // }
+            if (current_button_states[SDL_CONTROLLER_BUTTON_Y] && !prev_button_states[SDL_CONTROLLER_BUTTON_Y]) {
+                billboarded_sprites = !billboarded_sprites;
+            }
+            if (current_button_states[SDL_CONTROLLER_BUTTON_B] && !prev_button_states[SDL_CONTROLLER_BUTTON_B]) {
+                spherical_billboarding = !spherical_billboarding;
             }
 
-            glm::mat4 view = camera.view();
+            glm::mat4 view_matrix = camera.view();
+            glm::mat4 projection_view_matrix = projection_matrix * view_matrix;
 
+            auto frustum = math::frustum(projection_view_matrix);
 
             // glClearColor(0.3f, 0.3f, 0.3f, 1.0f);
             glClearColor(0, 0, 0, 1.0f);
             glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
             tiles_shader.use();
-            u_tile_view_matrix.set(view);
+            u_tile_pv_matrix.set(projection_view_matrix);
             for (const auto& surface : level) {
                 surface.draw(u_tile_texture);
             }
 
-            sprites_shader.use();
-            u_sprites_view_matrix.set(view);
-            u_sprites_texture.set(imagesets.get("characters"_hs));
-            for (auto sprite_data : sprites) {
-                u_sprites_position.set(sprite_data.position);
-                u_sprites_image.set(sprite_data.image);
-                sprite.draw();
-            }
+            spritepool_shader.use();
+            u_spritepool_billboarding.set(billboarded_sprites);
+            u_spritepool_billboarding_spherical.set(spherical_billboarding);
+            u_spritepool_view_matrix.set(view_matrix);
+            spritePool.render(frustum);
 
             SDL_GL_SwapWindow(window.get());
 
@@ -397,8 +418,13 @@ int main (int argc, char* argv[])
                 // Accumulate time. Do this rather than measuring from the start time so that we can 'omit' time, eg when paused.
                 time_since_start += frame_time_micros;
             }
+            ++total_frames;
         } while (running);
-
+        
+        auto millis = float(time_since_start) * 0.001f;
+        auto seconds = millis * 0.001f;
+        info("Average frame time: {} ms", (millis / float(total_frames)));
+        info("Average framerate: {} FPS", total_frames / seconds);
         unloadLevel(level);
 
     } catch (std::exception& e) {

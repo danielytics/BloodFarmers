@@ -13,7 +13,7 @@
 namespace helpers {
 
 template <typename ContainerType>
-bool remove(ContainerType& container, std::size_t index)
+void remove(ContainerType& container, std::size_t index)
 {
     auto it = container.begin() + index;
     auto last = container.end() - 1;

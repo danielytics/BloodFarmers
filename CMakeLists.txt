@@ -61,6 +61,7 @@ set(SOURCES
     src/graphics/shader.cpp
     src/graphics/textures.cpp
     src/graphics/imagesets.cpp
+    src/graphics/spritepool.cpp
     src/util/logging.cpp
     src/util/helpers.cpp
 )
