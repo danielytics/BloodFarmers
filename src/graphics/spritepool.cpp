@@ -54,8 +54,8 @@ void graphics::SpritePool::init (const graphics::shader& spriteShader, int textu
 void graphics::SpritePool::update (const std::vector<Sprite>& sprites)
 {
     if (spriteCount != sprites.size()) {
-        if (spriteCount != 0) { // If this isn't the first update, then warn that the size has changed
-            warn("SpritePool inited for {} sprites but {} sprites updated - this may have a performance impact", spriteCount, sprites.size());
+        if (spriteCount != 0 && spriteCount < sprites.size()) { // If this isn't the first update, then warn that the size has changed
+            debug("SpritePool inited for {} sprites but {} sprites updated - this may have a performance impact", spriteCount, sprites.size());
         }
         spriteCount = unsigned(sprites.size());
         unsortedBuffer.reserve(spriteCount);

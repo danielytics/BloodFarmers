@@ -57,12 +57,12 @@ namespace detail {
     private:
         typedef std::true_type yes;
         typedef std::false_type no;
-        template<typename U> static auto test(int) -> decltype(std::declval<U>().notify(EntityNotification::ADDED, std::vector<entity>{}), yes());
+        template<typename U> static auto test(int) -> decltype(std::declval<U>().notify(std::declval<registry_type&>(), EntityNotification::ADDED, std::declval<const std::vector<entity>&>()), yes());
         template<typename> static no test(...);
     public:
         static constexpr bool value = std::is_same<decltype(test<T>(0)),yes>::value;
     };
-    template<typename T> typename std::enable_if<has_method__post<T>::value, void>::type call_if_declared__notify(T* self, EntityNotification n, std::vector<entity> e) {self->notify(n, e);}
+    template<typename T> typename std::enable_if<has_method__notify<T>::value, void>::type call_if_declared__notify(T* self, registry_type& r, EntityNotification n, const std::vector<entity>& e) {self->notify(r, n, e);}
     void call_if_declared__notify(...) {}
 }
 
@@ -91,20 +91,20 @@ public:
             //         static_cast<This*>(this)->update(entity, (view.template get<Components>(entity))...);
             //     }
             // });
-            // findAddedAndRemovedEntities(updatedEntities, added, removed);
+            // findAddedAndRemovedEntities(std::move(updatedEntities), added, removed);
         } else {
             std::vector<entity> updatedEntities;
             registry.view<Components...>().each([this,&updatedEntities](auto entity, Components&... args){
                 addLiveEntity(updatedEntities, entity);
                 static_cast<This*>(this)->update(entity, args...);
             });
-            findAddedAndRemovedEntities(updatedEntities, added, removed);
+            findAddedAndRemovedEntities(std::move(updatedEntities), added, removed);
         }
-        // Compiled away if This::notify(n,e) is not defined
+        // Compiled away if This::notify(r,n,e) is not defined
         if constexpr (detail::has_method__notify<This>::value) {
             if (notificationsEnabled) {
-                detail::call_if_declared__notify(static_cast<This*>(this), EntityNotification::REMOVED, removed);
-                detail::call_if_declared__notify(static_cast<This*>(this), EntityNotification::ADDED, added);
+                detail::call_if_declared__notify(static_cast<This*>(this), registry, EntityNotification::REMOVED, removed);
+                detail::call_if_declared__notify(static_cast<This*>(this), registry, EntityNotification::ADDED, added);
             }
         }
         detail::call_if_declared__post(static_cast<This*>(this));
@@ -121,18 +121,22 @@ private:
     inline void addLiveEntity (T& current, entity e) {
         // Compiled away if This::notify(n,e) is not defined
         if constexpr (detail::has_method__notify<This>::value) {
-            current.push_back(e);
+            if (notificationsEnabled) {
+                current.push_back(e);
+            }
         }
     }
 
     template <typename T>
-    inline void findAddedAndRemovedEntities (T& current, std::vector<entity>& added, std::vector<entity>& removed) {
+    inline void findAddedAndRemovedEntities (T&& current, std::vector<entity>& added, std::vector<entity>& removed) {
         // Compiled away if This::notify(n,e) is not defined
         if constexpr (detail::has_method__notify<This>::value) {
             if (notificationsEnabled) {
+                std::sort(current.begin(), current.end());
                 std::set_difference(current.begin(), current.end(), liveEntities.begin(), liveEntities.end(), std::back_inserter(added));
                 std::set_difference(liveEntities.begin(), liveEntities.end(), current.begin(), current.end(), std::back_inserter(removed));
-                std::copy(current.begin(), current.end(), std::back_inserter(liveEntities));
+                liveEntities.clear();
+                liveEntities.insert(liveEntities.end(), std::make_move_iterator(current.begin()), std::make_move_iterator(current.end()));
             }
         }
     }

@@ -1,7 +1,7 @@
 #ifndef COMPONENT_SPRITE_H
 #define COMPONENT_SPRITE_H
 
-namespace components {
+namespace ecs::components {
 
 struct sprite {
     float image;

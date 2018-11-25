@@ -3,7 +3,7 @@
 
 #include <util/clock.h>
 
-namespace components {
+namespace ecs::components {
 
 struct bitmap_animation {
     // Attributes

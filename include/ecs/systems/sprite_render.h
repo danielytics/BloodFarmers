@@ -9,9 +9,9 @@
 #include <ecs/components/sprite.h>
 #include <ecs/components/position.h>
 
-namespace systems {
+namespace ecs::systems {
 
-class sprite_render : public ecs::base_system<sprite_render, components::sprite, components::position> {
+class sprite_render : public ecs::base_system<sprite_render, ecs::components::sprite, ecs::components::position> {
 public:
     sprite_render (graphics::SpritePool& pool, graphics::shader& shader)
         : sprite_pool(pool)
@@ -26,7 +26,7 @@ public:
         view_matrix = view;
     }
 
-    void update (ecs::entity, const components::sprite& sprite, const components::position& position) {
+    void update (ecs::entity, const ecs::components::sprite& sprite, const ecs::components::position& position) {
         // gather commands for renderer
         spheres.push_back({position.position, sprite.image});
     }

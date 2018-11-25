@@ -6,9 +6,9 @@
 #include <ecs/components/bitmap_animation.h>
 #include <ecs/components/sprite.h>
 
-namespace systems {
+namespace ecs::systems {
 
-class sprite_animation : public ecs::base_system<sprite_animation, components::bitmap_animation, components::sprite> {
+class sprite_animation : public ecs::base_system<sprite_animation, ecs::components::bitmap_animation, ecs::components::sprite> {
 public:
     sprite_animation () {}
     ~sprite_animation () noexcept = default;
@@ -17,7 +17,7 @@ public:
         current_time = elapsed_time;
     }
 
-    void update (ecs::entity, components::bitmap_animation& animation, components::sprite& sprite) {
+    void update (ecs::entity, ecs::components::bitmap_animation& animation, ecs::components::sprite& sprite) {
         auto elapsed = current_time - animation.start_time;
         float delta = float(elapsed) * 0.000001f;
         if (delta > animation.speed) {

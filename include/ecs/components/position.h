@@ -3,7 +3,7 @@
 
 #include <glm/glm.hpp>
 
-namespace components {
+namespace ecs::components {
 
 struct position {
     glm::vec3 position;

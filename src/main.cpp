@@ -13,6 +13,9 @@
 #include <entt/entt.hpp>
 #include <cxxopts.hpp>
 
+#include <btBulletDynamicsCommon.h>
+#include <BulletCollision/CollisionShapes/btBox2dShape.h>
+
 #include <functional>
 #include <cmath>
 #include <sstream>
@@ -136,6 +139,126 @@ Settings readSettings (int argc, char* argv[])
     return settings;
 }
 
+namespace ecs::components {
+
+struct physics_body {
+
+};
+
+}
+
+namespace ecs::systems {
+
+class physics_simulation : public ecs::base_system<physics_simulation, ecs::components::physics_body, ecs::components::position> {
+public:
+    physics_simulation ()
+    {
+        notificationsEnabled = true;
+    }
+
+    ~physics_simulation() {
+        delete dynamicsWorld;
+        delete solver;
+        delete broadphase;
+        delete dispatcher;
+        delete collisionConfiguration;
+    }
+
+    void init () {
+        collisionConfiguration = new btDefaultCollisionConfiguration();
+        dispatcher = new btCollisionDispatcher(collisionConfiguration);
+        broadphase = new btDbvtBroadphase();
+        solver = new btSequentialImpulseConstraintSolver();
+        dynamicsWorld = new btDiscreteDynamicsWorld(dispatcher, broadphase, solver, collisionConfiguration);
+        dynamicsWorld->setGravity(btVector3(0 , -10 , 0));
+    }
+
+    inline void setDeltaTime (float delta) {
+        delta_time = delta;
+    }
+
+    void pre () {
+
+    }
+
+    void update (const ecs::entity e, const ecs::components::physics_body& physics_body, ecs::components::position& position) {
+        auto it = physics_bodies.find(e);
+        if (it != physics_bodies.end()) {
+            auto [key, physics_body] = *it;
+            const auto& transform = physics_body->getWorldTransform();
+            auto origin = transform.getOrigin();
+            position.position = glm::vec3(origin.x(), origin.y(), origin.z());
+        }
+    }
+
+    void notify (ecs::registry_type& registry, ecs::EntityNotification notification, const std::vector<ecs::entity>& entities) {
+        switch (notification) {
+            case ecs::EntityNotification::ADDED:
+                for (auto entity : entities) {
+                    info("Entity {} added to physics system", entity);
+                    auto position = registry.get<ecs::components::position>(entity);
+                    addBody(entity, position.position + glm::vec3(0, 1.0f, 0), glm::vec3(0.5f, 1.0f, 0.5f));
+                }
+                break;
+            case ecs::EntityNotification::REMOVED:
+                 for (auto entity : entities) {
+                    info("Entity {} removed from physics system", entity);
+                }
+                break;
+        };
+    }
+
+    void post () {
+        dynamicsWorld->stepSimulation(delta_time);
+    }
+
+private:
+    float delta_time;
+
+    btDefaultCollisionConfiguration* collisionConfiguration;
+    btCollisionDispatcher* dispatcher;
+    btBroadphaseInterface* broadphase;
+    btSequentialImpulseConstraintSolver* solver;
+    btDiscreteDynamicsWorld* dynamicsWorld;
+
+    btAlignedObjectArray<btCollisionShape*> collisionShapes;
+    std::map<ecs::entity, btRigidBody*> physics_bodies;
+
+    void addBody (const ecs::entity entity, const glm::vec3& position, const glm::vec3& halfExtents)
+    {
+        btCollisionShape* body_shape = new btBoxShape(btVector3(btScalar(halfExtents.x), btScalar(halfExtents.y), btScalar(halfExtents.z)));
+
+        collisionShapes.push_back(body_shape);
+
+        btTransform transform;
+        transform.setIdentity();
+        transform.setOrigin(btVector3(position.x, position.y, position.z));
+
+        btScalar mass(1.0f);
+
+        //rigidbody is dynamic if and only if mass is non zero, otherwise static
+        bool isDynamic = (mass != 0.f);
+
+        btVector3 local_inertia(0, 0, 0);
+        if (isDynamic) {
+            body_shape->calculateLocalInertia(mass, local_inertia);
+        }
+
+        //using motionstate is optional, it provides interpolation capabilities, and only synchronizes 'active' objects
+        btDefaultMotionState* motion_state = new btDefaultMotionState(transform);
+        btRigidBody::btRigidBodyConstructionInfo rigitbody_info(mass, motion_state, body_shape, local_inertia);
+        rigitbody_info.m_restitution = 1.0f;
+        rigitbody_info.m_friction = 0.5f;
+        btRigidBody* body = new btRigidBody(rigitbody_info);
+        body->setLinearVelocity(btVector3(0, 0, -5.0f));
+
+        //add the body to the dynamics world
+        dynamicsWorld->addRigidBody(body);
+        physics_bodies[entity] = body;
+    }
+};
+
+}
 
 int main (int argc, char* argv[])
 {
@@ -261,25 +384,29 @@ int main (int argc, char* argv[])
         spritePool.init(spritepool_shader, imagesets.get("characters"_hs));
         ecs::registry_type registry;
 
-        auto sprite_render_system = new systems::sprite_render(spritePool, spritepool_shader);
-        auto sprite_animation_system = new systems::sprite_animation;
+        auto physics_simulation_system = new ecs::systems::physics_simulation;
+        auto sprite_animation_system = new ecs::systems::sprite_animation;
+        auto sprite_render_system = new ecs::systems::sprite_render(spritePool, spritepool_shader);
         auto systems = std::vector<ecs::system*>{
+            physics_simulation_system,
             sprite_animation_system,
             sprite_render_system,
         };
+
+        physics_simulation_system->init();
 
         {
             std::random_device rd;
             std::mt19937 mt(rd());
             std::uniform_real_distribution<float> dist(-50.0f, 50.0f);
             std::uniform_int_distribution<int> rnd(0, 32);
-            for (unsigned i=0; i<1000; ++i) {
+            for (unsigned i=0; i<10; ++i) {
                 glm::vec3 position = {dist(mt), 0, dist(mt)-50.0f};
                 float base_image = float(rnd(mt)) * 3.0f;
                 auto entity = registry.create();
-                registry.assign<components::position>(entity, position);
-                registry.assign<components::sprite>(entity, base_image);
-                registry.assign<components::bitmap_animation>(entity, base_image, 3.f, 0.2f, 0.f, 0);
+                registry.assign<ecs::components::position>(entity, position);
+                registry.assign<ecs::components::sprite>(entity, base_image);
+                registry.assign<ecs::components::bitmap_animation>(entity, base_image, 3.f, 0.2f, 0.f, 0);
             }
         }
 
@@ -304,6 +431,7 @@ int main (int argc, char* argv[])
         do {
             trace_block("gameloop");
             camera.beginFrame(frame_time);
+            physics_simulation_system->setDeltaTime(frame_time);
 
             if (buttons_dirty) {
                 buttons_dirty = false;
@@ -384,6 +512,13 @@ int main (int argc, char* argv[])
             }
             if (current_button_states[SDL_CONTROLLER_BUTTON_B] && !prev_button_states[SDL_CONTROLLER_BUTTON_B]) {
                 spherical_billboarding = !spherical_billboarding;
+            }
+
+            if (current_button_states[SDL_CONTROLLER_BUTTON_RIGHTSHOULDER] && !prev_button_states[SDL_CONTROLLER_BUTTON_RIGHTSHOULDER]) {
+                auto entity = registry.create();
+                registry.assign<ecs::components::position>(entity, glm::vec3(0, 0, 0));
+                registry.assign<ecs::components::sprite>(entity, 0.f);
+                registry.assign<ecs::components::physics_body>(entity);
             }
 
             glm::mat4 view_matrix = camera.view();
