@@ -32,7 +32,8 @@
 
 #include "graphics/generators/surfaces.h"
 
-#include "ecs/system.h"
+#include "ecs/systems/sprite_render.h"
+#include "ecs/systems/sprite_animation.h"
 
 
 std::map<GLenum,std::string> GL_ERROR_STRINGS = {
@@ -135,96 +136,6 @@ Settings readSettings (int argc, char* argv[])
     return settings;
 }
 
-namespace components {
-
-struct position {
-    glm::vec3 position;
-};
-struct sprite {
-    float image;
-};
-struct bitmap_animation {
-    // Attributes
-    float base_image;
-    float max_frames;
-    float speed;
-    // Runtime data
-    float current_frame;
-    ElapsedTime_t start_time;
-};
-
-}
-
-namespace systems {
-
-class sprite_animation_system : public ecs::base_system<sprite_animation_system, components::bitmap_animation, components::sprite> {
-public:
-    sprite_animation_system () {}
-    ~sprite_animation_system () noexcept = default;
-
-    void setTime (ElapsedTime_t elapsed_time) {
-        current_time = elapsed_time;
-    }
-
-    void update (ecs::entity, components::bitmap_animation& animation, components::sprite& sprite) {
-        auto elapsed = current_time - animation.start_time;
-        float delta = float(elapsed) * 0.000001f;
-        if (delta > animation.speed) {
-            if (++animation.current_frame >= animation.max_frames) {
-                animation.current_frame = 0;
-            }
-            animation.start_time = current_time;
-        }
-        float image = sprite.image;
-        sprite.image = animation.base_image + animation.current_frame;
-    }
-private:
-    ElapsedTime_t current_time;
-};
-
-class sprite_render_system : public ecs::base_system<sprite_render_system, components::sprite, components::position> {
-public:
-    sprite_render_system (graphics::SpritePool& pool, graphics::shader& shader)
-        : sprite_pool(pool)
-        , spritepool_shader(shader)
-    {
-        u_spritepool_view_matrix = shader.uniform("view");
-    }
-
-    ~sprite_render_system() noexcept = default;
-
-    void setView (const glm::mat4 view) {
-        view_matrix = view;
-    }
-
-    void update (ecs::entity, const components::sprite& sprite, const components::position& position) {
-        // gather commands for renderer
-        spheres.push_back({position.position, sprite.image});
-    }
-
-    void post () {
-        std::size_t num_objects = spheres.size();
-
-        sprite_pool.update(spheres);
-        spritepool_shader.use();
-        u_spritepool_view_matrix.set(view_matrix);
-        sprite_pool.render();
-
-        // reset for next frame
-        spheres = {};
-        // next frame will likely have the same number of sprites to render
-        spheres.reserve(num_objects);
-    }
-
-private:
-    std::vector<graphics::Sprite> spheres; // x, y, z, radius
-    graphics::SpritePool& sprite_pool;
-    graphics::shader& spritepool_shader;
-    graphics::uniform u_spritepool_view_matrix;
-    glm::mat4 view_matrix;
-};
-
-}
 
 int main (int argc, char* argv[])
 {
@@ -350,36 +261,12 @@ int main (int argc, char* argv[])
         spritePool.init(spritepool_shader, imagesets.get("characters"_hs));
         ecs::registry_type registry;
 
-        auto sprite_render_system = new systems::sprite_render_system(spritePool, spritepool_shader);
-        auto sprite_animation_system = new systems::sprite_animation_system;
+        auto sprite_render_system = new systems::sprite_render(spritePool, spritepool_shader);
+        auto sprite_animation_system = new systems::sprite_animation;
         auto systems = std::vector<ecs::system*>{
             sprite_animation_system,
             sprite_render_system,
         };
-
-        std::vector<graphics::Sprite> sprites = {
-            {{ 1.0f, 0, -1.0f}, 0},
-            {{ 3.0f, 0, -2.0f}, 6},
-            {{ 4.0f, 0, -3.0f}, 12},
-            {{ 6.5f, 0, -4.0f}, 18},
-            {{ 8.0f, 0, -3.0f}, 1},
-            {{10.0f, 0, -2.0f}, 7},
-            {{12.0f, 0, -1.0f}, 13},
-            {{14.0f, 0, -2.0f}, 19},
-            {{ 3.5f, 0, -9.0f}, 4},
-            {{ 2.5f, 0, -4.0f}, 10},
-        };
-
-        // std::vector<ecs::entity> entities;
-        // for (auto sprite : sprites) {
-        //     auto entity = registry.create();
-        //     registry.assign<components::position>(entity, sprite.position);
-        //     registry.assign<components::sprite>(entity, sprite.image);
-        //     entities.push_back(entity);
-        // }
-
-        // registry.assign<components::bitmap_animation>(entities[0], 0.f, 3.f, 0.2f, 0.f, 0);
-
 
         {
             std::random_device rd;
