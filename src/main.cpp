@@ -144,16 +144,43 @@ struct sprite {
     float image;
 };
 struct bitmap_animation {
+    // Attributes
     float base_image;
     float max_frames;
+    float speed;
+    // Runtime data
     float current_frame;
-    float start_time;
-    float animation_speed;
+    ElapsedTime_t start_time;
 };
 
 }
 
 namespace systems {
+
+class sprite_animation_system : public ecs::base_system<sprite_animation_system, components::bitmap_animation, components::sprite> {
+public:
+    sprite_animation_system () {}
+    ~sprite_animation_system () noexcept = default;
+
+    void setTime (ElapsedTime_t elapsed_time) {
+        current_time = elapsed_time;
+    }
+
+    void update (ecs::entity, components::bitmap_animation& animation, components::sprite& sprite) {
+        auto elapsed = current_time - animation.start_time;
+        float delta = float(elapsed) * 0.000001f;
+        if (delta > animation.speed) {
+            if (++animation.current_frame >= animation.max_frames) {
+                animation.current_frame = 0;
+            }
+            animation.start_time = current_time;
+        }
+        float image = sprite.image;
+        sprite.image = animation.base_image + animation.current_frame;
+    }
+private:
+    ElapsedTime_t current_time;
+};
 
 class sprite_render_system : public ecs::base_system<sprite_render_system, components::sprite, components::position> {
 public:
@@ -324,8 +351,10 @@ int main (int argc, char* argv[])
         ecs::registry_type registry;
 
         auto sprite_render_system = new systems::sprite_render_system(spritePool, spritepool_shader);
+        auto sprite_animation_system = new systems::sprite_animation_system;
         auto systems = std::vector<ecs::system*>{
-            sprite_render_system
+            sprite_animation_system,
+            sprite_render_system,
         };
 
         std::vector<graphics::Sprite> sprites = {
@@ -341,21 +370,31 @@ int main (int argc, char* argv[])
             {{ 2.5f, 0, -4.0f}, 10},
         };
 
-        for (auto sprite : sprites) {
-            auto entity = registry.create();
-            registry.assign<components::position>(entity, sprite.position);
-            registry.assign<components::sprite>(entity, sprite.image);
-        }
-
-        // {
-        //     std::random_device rd;
-        //     std::mt19937 mt(rd());
-        //     std::uniform_real_distribution<float> dist(-50.0f, 50.0f);
-        //     std::uniform_real_distribution<float> rnd(0.0f, 23.0f);
-        //     for (unsigned i=0; i<1000; ++i) {
-        //         sprites.push_back({{dist(mt), 0, dist(mt)-50.0f},rnd(mt)});
-        //     }
+        // std::vector<ecs::entity> entities;
+        // for (auto sprite : sprites) {
+        //     auto entity = registry.create();
+        //     registry.assign<components::position>(entity, sprite.position);
+        //     registry.assign<components::sprite>(entity, sprite.image);
+        //     entities.push_back(entity);
         // }
+
+        // registry.assign<components::bitmap_animation>(entities[0], 0.f, 3.f, 0.2f, 0.f, 0);
+
+
+        {
+            std::random_device rd;
+            std::mt19937 mt(rd());
+            std::uniform_real_distribution<float> dist(-50.0f, 50.0f);
+            std::uniform_int_distribution<int> rnd(0, 32);
+            for (unsigned i=0; i<1000; ++i) {
+                glm::vec3 position = {dist(mt), 0, dist(mt)-50.0f};
+                float base_image = float(rnd(mt)) * 3.0f;
+                auto entity = registry.create();
+                registry.assign<components::position>(entity, position);
+                registry.assign<components::sprite>(entity, base_image);
+                registry.assign<components::bitmap_animation>(entity, base_image, 3.f, 0.2f, 0.f, 0);
+            }
+        }
 
         SDL_Event event;
         bool running = true;
@@ -466,6 +505,7 @@ int main (int argc, char* argv[])
             auto frustum = math::frustum(projection_view_matrix);
 
             sprite_render_system->setView(view_matrix);
+            sprite_animation_system->setTime(time_since_start);
 
             // glClearColor(0.3f, 0.3f, 0.3f, 1.0f);
             glClearColor(0, 0, 0, 1.0f);

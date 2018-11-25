@@ -94,7 +94,7 @@ public:
             // findAddedAndRemovedEntities(updatedEntities, added, removed);
         } else {
             std::vector<entity> updatedEntities;
-            registry.view<Components...>().each([this,&updatedEntities](auto entity, const Components... args){
+            registry.view<Components...>().each([this,&updatedEntities](auto entity, Components&... args){
                 addLiveEntity(updatedEntities, entity);
                 static_cast<This*>(this)->update(entity, args...);
             });
