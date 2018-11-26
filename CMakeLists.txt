@@ -128,6 +128,7 @@ set(PROJECT_AUTHOR_EMAIL "projects@dan.kersten.me")
 message("*")
 message("* ${PROJECT_NAME} v${PROJECT_VERSION} (${CMAKE_BUILD_TYPE})")
 message("* Copyright (c) 2018 ${PROJECT_AUTHOR} <${PROJECT_AUTHOR_EMAIL}>")
+message("* Building with ${CMAKE_CXX_COMPILER_ID}")
 message("*")
 
 option(USE_ASAN "Use address sanitizer by adding -fsanitize=address -fno-omit-frame-pointer flags" OFF)
@@ -139,11 +140,11 @@ endif()
 
 target_compile_options(
     BloodFarm
-    PUBLIC $<$<AND:$<CONFIG:Debug>,$<NOT:$<CXX_COMPILER_ID:MSVC>>>:-O0 -g>
+    PUBLIC $<$<AND:$<CONFIG:Debug>,$<NOT:$<BOOL:USING_MSVC>>>:-O0 -g>
     # it seems that -O3 ruins a bit the performance when using clang ...
-    PUBLIC $<$<AND:$<CONFIG:Release>,$<CXX_COMPILER_ID:Clang>>:-O2 -Rpass=inline -flto=thin>
+    PUBLIC $<$<AND:$<CONFIG:Release>,$<BOOL:USING_CLANG>>:-O2 -flto=thin>
     # ... on the other side, GCC is incredibly comfortable with it.
-    PUBLIC $<$<AND:$<CONFIG:Release>,$<CXX_COMPILER_ID:GNU>>:-O3>
+    PUBLIC $<$<AND:$<CONFIG:Release>,$<BOOL:USING_GCC>>:-O3>
 )
 
 # Platform specific compile options
