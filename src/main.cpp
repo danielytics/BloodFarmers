@@ -38,6 +38,8 @@
 #include "ecs/systems/sprite_render.h"
 #include "ecs/systems/sprite_animation.h"
 
+#include "services/locator.h"
+#include "services/core/resources.h"
 
 std::map<GLenum,std::string> GL_ERROR_STRINGS = {
     {GL_INVALID_ENUM, "GL_INVALID_ENUM"},
@@ -202,7 +204,12 @@ public:
                 break;
             case ecs::EntityNotification::REMOVED:
                  for (auto entity : entities) {
-                    info("Entity {} removed from physics system", entity);
+                    auto it = physics_bodies.find(entity);
+                    if (it != physics_bodies.end()) {
+                        info("Entity {} removed from physics system", entity);
+                        dynamicsWorld->removeRigidBody(it->second);
+                        physics_bodies.erase(it);
+                    }
                 }
                 break;
         };
@@ -349,7 +356,8 @@ int main (int argc, char* argv[])
         glEnable(GL_MULTISAMPLE);
 
         glm::mat4 projection_matrix = glm::perspective(glm::radians(60.0f), 640.0f / 480.0f, 0.1f, 100.0f);
-        graphics::camera camera;
+        services::locator::resources::set<services::Resources>();
+        services::locator::camera::set<graphics::camera>();
 
         graphics::Imagesets imagesets;
         imagesets.load("imagesets.toml");
@@ -425,6 +433,8 @@ int main (int argc, char* argv[])
         Uint8 current_button_states[SDL_CONTROLLER_BUTTON_MAX];
         Uint8 prev_button_states[SDL_CONTROLLER_BUTTON_MAX];
         float axis_values[SDL_CONTROLLER_AXIS_MAX];
+
+        graphics::camera& camera = services::locator::camera::ref();
 
         info("Ready");
         // Run the main processing loop

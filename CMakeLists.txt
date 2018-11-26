@@ -64,6 +64,7 @@ set(SOURCES
     src/graphics/spritepool.cpp
     src/util/logging.cpp
     src/util/helpers.cpp
+    src/services/core/resources.cpp
 )
 
 add_executable(BloodFarm ${SOURCES} $<TARGET_OBJECTS:FastNoiseSIMD>)

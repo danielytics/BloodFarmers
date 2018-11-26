@@ -1,13 +1,15 @@
 #ifndef SYSTEMS_SPRITE_RENDER_H
 #define SYSTEMS_SPRITE_RENDER_H
 
-#include "ecs/system.h"
+#include <ecs/system.h>
 
 #include <graphics/shader.h>
 #include <graphics/spritepool.h>
 
 #include <ecs/components/sprite.h>
 #include <ecs/components/position.h>
+
+#include <services/locator.h>
 
 namespace ecs::systems {
 
