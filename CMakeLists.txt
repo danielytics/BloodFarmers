@@ -65,6 +65,7 @@ set(SOURCES
     src/util/logging.cpp
     src/util/helpers.cpp
     src/services/core/resources.cpp
+    src/services/core/physics.cpp
 )
 
 add_executable(BloodFarm ${SOURCES} $<TARGET_OBJECTS:FastNoiseSIMD>)

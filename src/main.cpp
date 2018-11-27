@@ -13,9 +13,6 @@
 #include <entt/entt.hpp>
 #include <cxxopts.hpp>
 
-#include <btBulletDynamicsCommon.h>
-#include <BulletCollision/CollisionShapes/btBox2dShape.h>
-
 #include <functional>
 #include <cmath>
 #include <sstream>
@@ -37,9 +34,15 @@
 
 #include "ecs/systems/sprite_render.h"
 #include "ecs/systems/sprite_animation.h"
+#include "ecs/systems/physics_simulation.h"
 
 #include "services/locator.h"
 #include "services/core/resources.h"
+#include "services/core/renderer.h"
+#include "services/core/physics.h"
+
+#include "physics/engine.h"
+
 
 std::map<GLenum,std::string> GL_ERROR_STRINGS = {
     {GL_INVALID_ENUM, "GL_INVALID_ENUM"},
@@ -141,132 +144,6 @@ Settings readSettings (int argc, char* argv[])
     return settings;
 }
 
-namespace ecs::components {
-
-struct physics_body {
-
-};
-
-}
-
-namespace ecs::systems {
-
-class physics_simulation : public ecs::base_system<physics_simulation, ecs::components::physics_body, ecs::components::position> {
-public:
-    physics_simulation ()
-    {
-        notificationsEnabled = true;
-    }
-
-    ~physics_simulation() {
-        delete dynamicsWorld;
-        delete solver;
-        delete broadphase;
-        delete dispatcher;
-        delete collisionConfiguration;
-    }
-
-    void init () {
-        collisionConfiguration = new btDefaultCollisionConfiguration();
-        dispatcher = new btCollisionDispatcher(collisionConfiguration);
-        broadphase = new btDbvtBroadphase();
-        solver = new btSequentialImpulseConstraintSolver();
-        dynamicsWorld = new btDiscreteDynamicsWorld(dispatcher, broadphase, solver, collisionConfiguration);
-        dynamicsWorld->setGravity(btVector3(0 , -10 , 0));
-    }
-
-    inline void setDeltaTime (float delta) {
-        delta_time = delta;
-    }
-
-    void pre () {
-
-    }
-
-    void update (const ecs::entity e, const ecs::components::physics_body& physics_body, ecs::components::position& position) {
-        auto it = physics_bodies.find(e);
-        if (it != physics_bodies.end()) {
-            auto [key, physics_body] = *it;
-            const auto& transform = physics_body->getWorldTransform();
-            auto origin = transform.getOrigin();
-            position.position = glm::vec3(origin.x(), origin.y(), origin.z());
-        }
-    }
-
-    void notify (ecs::registry_type& registry, ecs::EntityNotification notification, const std::vector<ecs::entity>& entities) {
-        switch (notification) {
-            case ecs::EntityNotification::ADDED:
-                for (auto entity : entities) {
-                    info("Entity {} added to physics system", entity);
-                    auto position = registry.get<ecs::components::position>(entity);
-                    addBody(entity, position.position + glm::vec3(0, 1.0f, 0), glm::vec3(0.5f, 1.0f, 0.5f));
-                }
-                break;
-            case ecs::EntityNotification::REMOVED:
-                 for (auto entity : entities) {
-                    auto it = physics_bodies.find(entity);
-                    if (it != physics_bodies.end()) {
-                        info("Entity {} removed from physics system", entity);
-                        dynamicsWorld->removeRigidBody(it->second);
-                        physics_bodies.erase(it);
-                    }
-                }
-                break;
-        };
-    }
-
-    void post () {
-        dynamicsWorld->stepSimulation(delta_time);
-    }
-
-private:
-    float delta_time;
-
-    btDefaultCollisionConfiguration* collisionConfiguration;
-    btCollisionDispatcher* dispatcher;
-    btBroadphaseInterface* broadphase;
-    btSequentialImpulseConstraintSolver* solver;
-    btDiscreteDynamicsWorld* dynamicsWorld;
-
-    btAlignedObjectArray<btCollisionShape*> collisionShapes;
-    std::map<ecs::entity, btRigidBody*> physics_bodies;
-
-    void addBody (const ecs::entity entity, const glm::vec3& position, const glm::vec3& halfExtents)
-    {
-        btCollisionShape* body_shape = new btBoxShape(btVector3(btScalar(halfExtents.x), btScalar(halfExtents.y), btScalar(halfExtents.z)));
-
-        collisionShapes.push_back(body_shape);
-
-        btTransform transform;
-        transform.setIdentity();
-        transform.setOrigin(btVector3(position.x, position.y, position.z));
-
-        btScalar mass(1.0f);
-
-        //rigidbody is dynamic if and only if mass is non zero, otherwise static
-        bool isDynamic = (mass != 0.f);
-
-        btVector3 local_inertia(0, 0, 0);
-        if (isDynamic) {
-            body_shape->calculateLocalInertia(mass, local_inertia);
-        }
-
-        //using motionstate is optional, it provides interpolation capabilities, and only synchronizes 'active' objects
-        btDefaultMotionState* motion_state = new btDefaultMotionState(transform);
-        btRigidBody::btRigidBodyConstructionInfo rigitbody_info(mass, motion_state, body_shape, local_inertia);
-        rigitbody_info.m_restitution = 1.0f;
-        rigitbody_info.m_friction = 0.5f;
-        btRigidBody* body = new btRigidBody(rigitbody_info);
-        body->setLinearVelocity(btVector3(0, 0, -5.0f));
-
-        //add the body to the dynamics world
-        dynamicsWorld->addRigidBody(body);
-        physics_bodies[entity] = body;
-    }
-};
-
-}
-
 int main (int argc, char* argv[])
 {
     Settings settings = readSettings(argc, argv);
@@ -359,6 +236,10 @@ int main (int argc, char* argv[])
         services::locator::resources::set<services::Resources>();
         services::locator::camera::set<graphics::camera>();
 
+        auto physicsEngine = std::make_shared<physics::Engine>();
+        services::locator::physics::set(std::shared_ptr<services::Physics>(physicsEngine));
+        physicsEngine->init();
+
         graphics::Imagesets imagesets;
         imagesets.load("imagesets.toml");
 
@@ -400,9 +281,6 @@ int main (int argc, char* argv[])
             sprite_animation_system,
             sprite_render_system,
         };
-
-        physics_simulation_system->init();
-
         {
             std::random_device rd;
             std::mt19937 mt(rd());
@@ -441,7 +319,6 @@ int main (int argc, char* argv[])
         do {
             trace_block("gameloop");
             camera.beginFrame(frame_time);
-            physics_simulation_system->setDeltaTime(frame_time);
 
             if (buttons_dirty) {
                 buttons_dirty = false;
@@ -535,6 +412,8 @@ int main (int argc, char* argv[])
             glm::mat4 projection_view_matrix = projection_matrix * view_matrix;
 
             auto frustum = math::frustum(projection_view_matrix);
+
+            physicsEngine->stepSimulation(frame_time);
 
             sprite_render_system->setView(view_matrix);
             sprite_animation_system->setTime(time_since_start);

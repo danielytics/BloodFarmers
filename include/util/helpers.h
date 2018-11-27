@@ -5,11 +5,6 @@
 #include <functional>
 #include <memory>
 
-#ifndef _SEMIMAP_H
-#define _SEMIMAP_H
-#include <semimap.h>
-#endif
-
 namespace helpers {
 
 template <typename ContainerType>
@@ -87,11 +82,22 @@ unique_maker_obj<T, Ctor, void(*)(T*)> ptr (Ctor ctor, Dtor dtor) {
 }
 template <typename T>
 std::unique_ptr<T> ptr (T* raw) {
-    return std::unique_ptr<T>{raw};
+    return std::unique_ptr<T>(raw);
+}
+
+template <typename T = char>
+inline T* align(void* pointer, uintptr_t bytes_alignment) {
+    intptr_t value = reinterpret_cast<intptr_t>(pointer);
+    value += (-value) & (bytes_alignment - 1);
+    return reinterpret_cast<T*>(value);
+}
+
+template <typename T>
+inline T roundDown(T n, T m) {
+    return n >= 0 ? (n / m) * m : ((n - m + 1) / m) * m;
 }
 
 }
 
-#define ID(x) []() constexpr { return x; }
 
 #endif // HELPERS_H

@@ -5,16 +5,14 @@
 #include <algorithm>
 #include <type_traits>
 
-#include <entt/entity/registry.hpp>
+#include <ecs/types.h>
+
 // #include "tbb/parallel_for.h"
 // #include "tbb/blocked_range.h"
 // #include "tbb/concurrent_unordered_set.h"
 // #include "tbb/concurrent_vector.h"
 
 namespace ecs {
-
-using registry_type = entt::registry<>;
-using entity = registry_type::entity_type;
 
 class system {
 public:

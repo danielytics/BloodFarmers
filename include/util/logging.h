@@ -52,7 +52,22 @@ public:
 
 #define LOG_FILELINE_FMT_ "({}:{}:{}) "
 
-#define LOG_(L, fmt, ...) spdlog::L(LOG_FILELINE_FMT_ fmt, __FILE__, __LINE__, __FUNCTION__, ##__VA_ARGS__)
+static constexpr const char * const past_last_slash(const char * const str, const char * const last_slash)
+{
+    return
+        *str == '\0' ? last_slash :
+        *str == '/'  ? past_last_slash(str + 1, str + 1) :
+                       past_last_slash(str + 1, last_slash);
+}
+
+static constexpr const char * const past_last_slash(const char * const str) 
+{ 
+    return past_last_slash(str, str);
+}
+#define __SHORT_FILE__ ({constexpr const char * const sf__ {past_last_slash(__FILE__)}; sf__;})
+
+
+#define LOG_(L, fmt, ...) spdlog::L(LOG_FILELINE_FMT_ fmt, __SHORT_FILE__, __LINE__, __FUNCTION__, ##__VA_ARGS__)
 
 #ifdef SPDLOG_TRACE_ON
 #define trace(...) LOG_(trace, __VA_ARGS__)
