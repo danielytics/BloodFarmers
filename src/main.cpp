@@ -29,6 +29,7 @@
 #include "graphics/camera.h"
 #include "graphics/imagesets.h"
 #include "graphics/spritepool.h"
+#include "graphics/renderer.h"
 
 #include "graphics/generators/surfaces.h"
 
@@ -238,6 +239,13 @@ Settings readSettings (int argc, char* argv[])
     return settings;
 }
 
+template <typename... Args> inline void null_fn (Args&&...) {}
+template <typename... Args>
+void initServices (Args&&... args) {
+    auto init = [](auto item){item->init(); return 0;};
+    null_fn(init(std::forward<Args>(args))...);
+}
+
 int main (int argc, char* argv[])
 {
     Settings settings = readSettings(argc, argv);
@@ -278,29 +286,9 @@ int main (int argc, char* argv[])
         on_exit_scope = [&context](){ SDL_GL_DeleteContext(context); };
         info("Created window with OpenGL {}", glGetString(GL_VERSION));
 
-        glm::vec4 viewport = glm::vec4(0, 0, 640, 480);
-        glViewport(0, 0, int(640), int(480));
-
         // Load OpenGL 3+ functions
         glewExperimental = GL_TRUE;
         glewInit();
-
-#ifdef DEBUG_BUILD
-        int max_tex_layers, max_combined_tex, max_vert_tex, max_geom_tex, max_frag_tex, max_tex_size;
-        glGetIntegerv(GL_MAX_ARRAY_TEXTURE_LAYERS, &max_tex_layers);
-        glGetIntegerv(GL_MAX_COMBINED_TEXTURE_IMAGE_UNITS, &max_combined_tex);
-        glGetIntegerv(GL_MAX_VERTEX_TEXTURE_IMAGE_UNITS, &max_vert_tex);
-        glGetIntegerv(GL_MAX_GEOMETRY_TEXTURE_IMAGE_UNITS, &max_geom_tex);
-        glGetIntegerv(GL_MAX_TEXTURE_IMAGE_UNITS, &max_frag_tex);
-        glGetIntegerv(GL_MAX_TEXTURE_SIZE, &max_tex_size);
-        info("Texture limits: {} combined units, {}/{}/{} vs/gs/fs units, {} array layers, {}x{} max size", max_combined_tex, max_vert_tex, max_geom_tex, max_frag_tex, max_tex_layers, max_tex_size, max_tex_size);
-        int max_vert_uniform_vec, max_frag_uniform_vec, max_varying_vec, max_vertex_attribs;
-        glGetIntegerv(GL_MAX_VERTEX_UNIFORM_VECTORS, &max_vert_uniform_vec);
-        glGetIntegerv(GL_MAX_FRAGMENT_UNIFORM_VECTORS, &max_frag_uniform_vec);
-        glGetIntegerv(GL_MAX_VARYING_VECTORS, &max_varying_vec);
-        glGetIntegerv(GL_MAX_VERTEX_ATTRIBS, &max_vertex_attribs);
-        info("Shader limits: {} vertex attributes, {} varying vectors, {} vertex vectors, {} fragment vectors", max_vertex_attribs, max_varying_vec, max_vert_uniform_vec, max_frag_uniform_vec);
-#endif
 
         SDL_GameController* gameController;
         {
@@ -313,72 +301,47 @@ int main (int argc, char* argv[])
         // auto myNoise = helpers::ptr<FastNoiseSIMD>(FastNoiseSIMD::NewFastNoiseSIMD).construct(1337);
         // auto noiseSet = helpers::ptr<float>(myNoise->GetSimplexFractalSet(0, 0, 0, 16, 16, 16));
 
-        // Set OpenGL settings
-        glEnable(GL_DEPTH_TEST);
-        glDepthMask(GL_TRUE);
-        glDepthFunc(GL_LEQUAL);
-        glDisable(GL_BLEND);
-        glDisable(GL_STENCIL_TEST);
-        glClearDepth(1.0);
-        glEnable(GL_CULL_FACE);
-        glCullFace(GL_BACK);
-        glFrontFace(GL_CCW);
-        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-        glEnable(GL_MULTISAMPLE);
-
-        glm::mat4 projection_matrix = glm::perspective(glm::radians(60.0f), 640.0f / 480.0f, 0.1f, 100.0f);
+        info("Creating resources service");
         services::locator::resources::set<services::Resources>();
         setupTypes();
         setupBuffers("buffers.toml");
         services::locator::resources::ref().init("static"_hs);
-        services::locator::camera::set<graphics::camera>();
+        
+        info("Creating rendeding service");
+        auto renderer = std::make_shared<graphics::Renderer>();
+        services::locator::renderer::set(std::shared_ptr<services::Renderer>(renderer));
+        services::locator::camera::set<services::Camera>();
 
+        info("Creating physics service");
         auto physicsEngine = std::make_shared<physics::Engine>();
         services::locator::physics::set(std::shared_ptr<services::Physics>(physicsEngine));
-        physicsEngine->init();
 
-        graphics::Imagesets imagesets;
-        imagesets.load("imagesets.toml");
+        info("Initialising services");
+        initServices(physicsEngine, renderer);
 
-        info("Loading shaders");
-        auto tiles_shader = graphics::shader::load({
-            {graphics::shader::types::Vertex,   "shaders/tiles.vert"},
-            {graphics::shader::types::Fragment, "shaders/tiles.frag"},
-        });
-        tiles_shader.use();
-        auto u_tile_pv_matrix = tiles_shader.uniform("projection_view");
-        auto u_tile_model_matrix = tiles_shader.uniform("model");
-        auto u_tile_texture = tiles_shader.uniform("texture_albedo");
+        info("Setting renderer config");
+        services::locator::config<"renderer.field-of-view"_hs, float>(60.0f);
+        services::locator::config<"renderer.near-distance"_hs, float>(0.1f);
+        services::locator::config<"renderer.far-distance"_hs, float>(100.0f);
+        services::locator::config<"renderer.width"_hs, float>(640.0f);
+        services::locator::config<"renderer.height"_hs, float>(480.0f);
+        renderer->windowChanged();
 
-        auto spritepool_shader = graphics::shader::load({
-            {graphics::shader::types::Vertex,   "shaders/spritepool.vert"},
-            {graphics::shader::types::Fragment, "shaders/spritepool.frag"},
-        });
-        spritepool_shader.use();
-        spritepool_shader.uniform("projection").set(projection_matrix);
-        auto u_spritepool_view_matrix = spritepool_shader.uniform("view");
-        auto u_spritepool_billboarding = spritepool_shader.uniform("billboarding");
-        auto u_spritepool_billboarding_spherical = spritepool_shader.uniform("spherical_billboarding");
-
-        bool billboarded_sprites = false;
-        bool spherical_billboarding = false;
-
+        info("Initialising game systems");
         ecs::registry_type registry;
-
-        info("Loading level");
-        auto level = loadLevel(imagesets, "maps/level.toml");
-
-        graphics::SpritePool spritePool;
-        spritePool.init(spritepool_shader, imagesets.get("characters"_hs));
-
         auto physics_simulation_system = new ecs::systems::physics_simulation;
         auto sprite_animation_system = new ecs::systems::sprite_animation;
-        auto sprite_render_system = new ecs::systems::sprite_render(spritePool, spritepool_shader);
+        auto sprite_render_system = new ecs::systems::sprite_render;
         auto systems = std::vector<ecs::system*>{
             physics_simulation_system,
             sprite_animation_system,
             sprite_render_system,
         };
+
+        info("Loading level");
+        // auto level = loadLevel(imagesets, "maps/level.toml");
+
+        info("Generating entities");
         {
             std::random_device rd;
             std::mt19937 mt(rd());
@@ -486,18 +449,6 @@ int main (int argc, char* argv[])
                 camera.pan({axis_values[SDL_CONTROLLER_AXIS_LEFTX] * 5.0f, 0, axis_values[SDL_CONTROLLER_AXIS_LEFTY] * 5.0f});
             }
             camera.orient(axis_values[SDL_CONTROLLER_AXIS_RIGHTX] * 5.0f, -axis_values[SDL_CONTROLLER_AXIS_RIGHTY] * 5.0f);
-            // if (current_button_states[SDL_CONTROLLER_BUTTON_LEFTSHOULDER]) {
-            //     camera.tiltBy(-45.0f);
-            // }
-            // if (current_button_states[SDL_CONTROLLER_BUTTON_RIGHTSHOULDER]) {
-            //     camera.tiltBy(45.0f);
-            // }
-            if (current_button_states[SDL_CONTROLLER_BUTTON_Y] && !prev_button_states[SDL_CONTROLLER_BUTTON_Y]) {
-                billboarded_sprites = !billboarded_sprites;
-            }
-            if (current_button_states[SDL_CONTROLLER_BUTTON_B] && !prev_button_states[SDL_CONTROLLER_BUTTON_B]) {
-                spherical_billboarding = !spherical_billboarding;
-            }
 
             if (current_button_states[SDL_CONTROLLER_BUTTON_RIGHTSHOULDER] && !prev_button_states[SDL_CONTROLLER_BUTTON_RIGHTSHOULDER]) {
                 auto entity = registry.create();
@@ -506,29 +457,15 @@ int main (int argc, char* argv[])
                 registry.assign<ecs::components::physics_body>(entity);
             }
 
-            glm::mat4 view_matrix = camera.view();
-            glm::mat4 projection_view_matrix = projection_matrix * view_matrix;
-
-            auto frustum = math::frustum(projection_view_matrix);
-
             physicsEngine->stepSimulation(frame_time);
 
-            sprite_render_system->setView(view_matrix);
             sprite_animation_system->setTime(time_since_start);
-
-            // glClearColor(0.3f, 0.3f, 0.3f, 1.0f);
-            glClearColor(0, 0, 0, 1.0f);
-            glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-
-            tiles_shader.use();
-            u_tile_pv_matrix.set(projection_view_matrix);
-            for (const auto& surface : level) {
-                surface.draw(u_tile_texture);
-            }
 
             for (auto system : systems) {
                 system->run(registry);
             }
+
+            renderer->render();
 
             SDL_GL_SwapWindow(window.get());
 
@@ -551,7 +488,7 @@ int main (int argc, char* argv[])
         auto seconds = millis * 0.001f;
         info("Average frame time: {} ms", (millis / float(total_frames)));
         info("Average framerate: {} FPS", total_frames / seconds);
-        unloadLevel(level);
+        // unloadLevel(level);
 
     } catch (std::exception& e) {
         error("Uncaught exception: {}", e.what());

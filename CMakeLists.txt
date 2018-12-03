@@ -62,6 +62,7 @@ set(SOURCES
     src/graphics/textures.cpp
     src/graphics/imagesets.cpp
     src/graphics/spritepool.cpp
+    src/graphics/renderer.cpp
     src/util/logging.cpp
     src/util/helpers.cpp
     src/services/core/resources.cpp

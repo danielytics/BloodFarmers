@@ -295,7 +295,6 @@ public:
                 // if (++entry.next_buffer >= entry.num_buffers) {
                 //     entry.next_buffer = 0;
                 // }
-                info("Found round-robin buffer: {:x}", buffer);
                 break;
             case "allocate"_hs:
             default:
