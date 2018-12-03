@@ -92,6 +92,10 @@ inline T* align(void* pointer, uintptr_t bytes_alignment) {
     return reinterpret_cast<T*>(value);
 }
 
+inline intptr_t align(intptr_t pointer, uintptr_t bytes_alignment) {
+    return pointer + ((-pointer) & (bytes_alignment - 1));
+}
+
 template <typename T>
 inline T roundDown(T n, T m) {
     return n >= 0 ? (n / m) * m : ((n - m + 1) / m) * m;

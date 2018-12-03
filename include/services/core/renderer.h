@@ -3,8 +3,15 @@
 
 #include <string>
 #include <cstdint>
+#include <utility>
 
 #include <util/helpers.h>
+
+namespace resources {
+
+class Handle;
+
+}
 
 // data will store exactly count T's, aligned to Alignment bytes and count will be a multiple of Width
 template <typename T, std::uint32_t Width, std::uint32_t Alignment>
@@ -31,27 +38,34 @@ struct aligned_vector {
 
 namespace services {
 
-struct SpriteVector {
-    using float_vec = aligned_vector<float, 4, 16>; 
-};
-
 class Renderer {
 public:
-    using RenderMode = entt::hashed_string::hash_type;
-
+    enum class RenderMode {
+        Normal,
+    };
+    enum class Type {
+        Meshes,
+        Sprites,
+    };
+ 
     // Resource management.
 
     // Loads shaders, textures, meshes for an entire scene
-    void loadScene (const std::string& scene_config);
+    virtual void loadScene (const std::string& scene_config) = 0;
 
     // Unload shaders, textures, meshes for an entire scene
-    void unloadScene ();
+    virtual void unloadScene () = 0;
 
     // Rendering.
 
-    void submitMeshes (const RenderMode render_mode);
-    void submitSprites (const RenderMode render_mode, const SpriteVector& sprites);
+    virtual void submit (const RenderMode render_mode, const Type render_type, resources::Handle&& data_handle) = 0;
 
+    inline void submitMeshes (const RenderMode render_mode, resources::Handle&& meshes) {
+        submit(render_mode, Type::Meshes, std::forward<resources::Handle>(meshes));
+    }
+    inline void submitSprites (const RenderMode render_mode, resources::Handle&& sprites) {
+        submit(render_mode, Type::Sprites, std::forward<resources::Handle>(sprites));
+    }
 };
 
 }

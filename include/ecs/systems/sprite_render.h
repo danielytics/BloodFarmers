@@ -10,6 +10,8 @@
 #include <ecs/components/position.h>
 
 #include <services/locator.h>
+#include <services/core/resources.h>
+#include <services/core/renderer.h>
 
 namespace ecs::systems {
 
@@ -28,23 +30,35 @@ public:
         view_matrix = view;
     }
 
+    void pre () {
+        sprite_data_handle = services::locator::resources::ref().request("sprites"_hs);
+        sprites = sprite_data_handle.buffer<graphics::Sprite>();
+    }
+
     void update (ecs::entity, const ecs::components::sprite& sprite, const ecs::components::position& position) {
         // gather commands for renderer
-        spheres.push_back({position.position, sprite.image});
+        sprites.emplace_back(position.position, sprite.image);
     }
 
     void post () {
-        std::size_t num_objects = spheres.size();
+        sprite_data_handle.release(std::move(sprites)); // 'sprites' is no longer valid, can only be accessed through handle
+        auto& renderer = services::locator::renderer::ref();
+        info("About to submit sprites");
+        renderer.submit(services::Renderer::RenderMode::Normal,
+                        services::Renderer::Type::Sprites,
+                        std::move(sprite_data_handle)); // handle no longer valid
+        info("After submitting");
+        // std::size_t num_objects = spheres.size();
 
-        sprite_pool.update(spheres);
-        spritepool_shader.use();
-        u_spritepool_view_matrix.set(view_matrix);
-        sprite_pool.render();
+        // sprite_pool.update(spheres);
+        // spritepool_shader.use();
+        // u_spritepool_view_matrix.set(view_matrix);
+        // sprite_pool.render();
 
-        // reset for next frame
-        spheres = {};
-        // next frame will likely have the same number of sprites to render
-        spheres.reserve(num_objects);
+        // // reset for next frame
+
+        // // next frame will likely have the same7le8uctsvn77777lumber of sprites to render
+        // spheres.reserve(num_objects);
     }
 
 private:
@@ -53,6 +67,9 @@ private:
     graphics::shader& spritepool_shader;
     graphics::uniform u_spritepool_view_matrix;
     glm::mat4 view_matrix;
+
+    resources::Handle sprite_data_handle;
+    resources::Buffer<graphics::Sprite> sprites;
 };
 
 }

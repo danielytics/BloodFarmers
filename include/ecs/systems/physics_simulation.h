@@ -12,16 +12,10 @@ namespace ecs::systems {
 
 class physics_simulation : public ecs::base_system<physics_simulation, ecs::components::physics_body, ecs::components::position> {
 public:
-    physics_simulation ()
-    {
-        notificationsEnabled = true;
+    physics_simulation () : physics(services::locator::physics::get().lock()) {
     }
 
     ~physics_simulation() {
-    }
-
-    void pre () {
-        physics = services::locator::physics::get().lock();
     }
 
     void update (const ecs::entity e, const ecs::components::physics_body& physics_body, ecs::components::position& position) {

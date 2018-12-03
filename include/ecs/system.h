@@ -68,8 +68,7 @@ template <class This, typename... Components>
 class base_system : public system {
 public:
     base_system()
-        : parallel(false)
-        , notificationsEnabled(false) {
+        : parallel(false) {
 
     }
     virtual ~base_system() noexcept = default;
@@ -100,16 +99,15 @@ public:
         }
         // Compiled away if This::notify(r,n,e) is not defined
         if constexpr (detail::has_method__notify<This>::value) {
-            if (notificationsEnabled) {
+            if (removed.size() > 0) {
                 detail::call_if_declared__notify(static_cast<This*>(this), registry, EntityNotification::REMOVED, removed);
+            }
+            if (added.size() > 0) {
                 detail::call_if_declared__notify(static_cast<This*>(this), registry, EntityNotification::ADDED, added);
             }
         }
         detail::call_if_declared__post(static_cast<This*>(this));
     }
-
-protected:
-    bool notificationsEnabled;
 
 private:
     bool parallel;
@@ -117,25 +115,21 @@ private:
 
     template <typename T>
     inline void addLiveEntity (T& current, entity e) {
-        // Compiled away if This::notify(n,e) is not defined
+        // Compiled away if This::notify(r,n,e) is not defined
         if constexpr (detail::has_method__notify<This>::value) {
-            if (notificationsEnabled) {
-                current.push_back(e);
-            }
+            current.push_back(e);
         }
     }
 
     template <typename T>
     inline void findAddedAndRemovedEntities (T&& current, std::vector<entity>& added, std::vector<entity>& removed) {
-        // Compiled away if This::notify(n,e) is not defined
+        // Compiled away if This::notify(r,n,e) is not defined
         if constexpr (detail::has_method__notify<This>::value) {
-            if (notificationsEnabled) {
-                std::sort(current.begin(), current.end());
-                std::set_difference(current.begin(), current.end(), liveEntities.begin(), liveEntities.end(), std::back_inserter(added));
-                std::set_difference(liveEntities.begin(), liveEntities.end(), current.begin(), current.end(), std::back_inserter(removed));
-                liveEntities.clear();
-                liveEntities.insert(liveEntities.end(), std::make_move_iterator(current.begin()), std::make_move_iterator(current.end()));
-            }
+            std::sort(current.begin(), current.end());
+            std::set_difference(current.begin(), current.end(), liveEntities.begin(), liveEntities.end(), std::back_inserter(added));
+            std::set_difference(liveEntities.begin(), liveEntities.end(), current.begin(), current.end(), std::back_inserter(removed));
+            liveEntities.clear();
+            liveEntities.insert(liveEntities.end(), std::make_move_iterator(current.begin()), std::make_move_iterator(current.end()));
         }
     }
 };

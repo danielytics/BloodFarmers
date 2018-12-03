@@ -1,0 +1,10 @@
+[[buffer-pool]]
+id = "sprites"
+lifecycle = "static" # static, stage, frame
+type = "sprite"
+requests = "round-robin" # static, round-robin, allocate
+buffers = 2 # 0 or omitted means dynamic, requires requests to be allocate
+# max_buffers = 2 # maximum buffers to allocate when requests is allocate
+buffer.alignment = 0
+buffer.size = 2048 # 2048 elements * sizeof(Sprite) = 2048 * 16 = 32 KB
+buffer.units = "elements" # b, kb, mb, elements
