@@ -4,8 +4,9 @@
 
 #include "graphics/spritepool.h"
 #include "graphics/debug.h"
-#include "util/logging.h"
 #include "util/helpers.h"
+
+#include "util/logging.h"
 
 
 graphics::SpritePool::SpritePool ()
@@ -51,18 +52,20 @@ void graphics::SpritePool::init (const graphics::shader& spriteShader, int textu
 }
 
 // TODO: avoid copying data by using some kind of quad tree or other spatially aware data structure. Also, set spriteCount as a static max on-screen limit (1k sprites?)
-void graphics::SpritePool::update (const std::vector<Sprite>& sprites)
+void graphics::SpritePool::update (Sprite* const sprites, std::size_t num_sprites)
 {
-    if (spriteCount != sprites.size()) {
-        if (spriteCount != 0 && spriteCount < sprites.size()) { // If this isn't the first update, then warn that the size has changed
-            debug("SpritePool inited for {} sprites but {} sprites updated - this may have a performance impact", spriteCount, sprites.size());
-        }
-        spriteCount = unsigned(sprites.size());
-        unsortedBuffer.reserve(spriteCount);
-        sortedBuffer.reserve(spriteCount);
-    }
-    unsortedBuffer.clear();
-    std::copy(sprites.begin(), sprites.end(), std::back_inserter(unsortedBuffer));
+//     if (spriteCount != num_sprites) {
+// #ifdef DEBUG_BUILD
+//         if (spriteCount != 0 && spriteCount < num_sprites) { // If this isn't the first update, then warn that the size has changed
+//             debug("SpritePool inited for {} sprites but {} sprites updated - this may have a performance impact", spriteCount, sprites.size());
+//         }
+// #endif
+//         spriteCount = unsigned(num_sprites);
+//         unsortedBuffer.reserve(spriteCount);
+//         sortedBuffer.reserve(spriteCount);
+//     }
+//     unsortedBuffer.clear();
+//     std::copy(sprites.begin(), sprites.end(), std::back_inserter(unsortedBuffer));
 }
 
 inline void sse_cull_spheres(std::vector<graphics::Sprite>::const_iterator sphere_data, std::size_t num_objects, std::vector<int>& culling_results, const std::array<glm::vec4, 6>& frustum_planes)
@@ -171,23 +174,28 @@ std::size_t graphics::SpritePool::cull_sprites (const math::frustum& frustum, st
 }
 
 
-void graphics::SpritePool::render ()
+void graphics::SpritePool::render (Sprite* const sprite_data, std::size_t num_sprites)
 {
-    // visibleSprites = cull_sprites(frustum, unsortedBuffer);
-    visibleSprites = unsortedBuffer.size();
+#ifdef DEBUG_BUILD
+    if (spriteCount != 0 && spriteCount < num_sprites) { // If this isn't the first update, then warn that the size has changed
+        debug("SpritePool inited for {} sprites but {} sprites updated - this may have a performance impact", spriteCount, num_sprites);
+    }
+#endif
 
     glActiveTexture(GL_TEXTURE0 + 6);
     glBindBuffer(GL_TEXTURE_BUFFER, tbo);
     glBindTexture(GL_TEXTURE_BUFFER, tbo_tex);
     // Orphan old buffer and then load data into new buffer
     glBufferData(GL_TEXTURE_BUFFER, sizeof(glm::vec4) * spriteCount, nullptr, GL_STREAM_DRAW);
-    glBufferData(GL_TEXTURE_BUFFER, sizeof(glm::vec4) * spriteCount, reinterpret_cast<const float*>(unsortedBuffer.data()), GL_STREAM_DRAW);
+    glBufferData(GL_TEXTURE_BUFFER, sizeof(glm::vec4) * num_sprites, reinterpret_cast<const float*>(sprite_data), GL_STREAM_DRAW);
     glTexBuffer(GL_TEXTURE_BUFFER, GL_R32F, tbo);
     glBindBuffer(GL_TEXTURE_BUFFER, 0);
 
-    debug("Rendering {} visible sprites ({} total)", visibleSprites, spriteCount);
+    debug("Rendering {} visible sprites ({} total)", num_sprites, spriteCount);
 
     u_tbo_tex.set(6);
-    mesh.draw(visibleSprites);
+    mesh.draw(num_sprites);
     checkErrors();
+
+    spriteCount = num_sprites;
 }

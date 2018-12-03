@@ -1,3 +1,9 @@
+
+#include <sstream>
+
+#include <cpptoml.h>
+#include <entt/entt.hpp>
+
 #include "graphics/renderer.h"
 
 #include <services/core/resources.h>
@@ -12,6 +18,48 @@
 
 #include "util/logging.h"
 
+std::vector<graphics::Surface> loadLevel (const graphics::Imagesets& imagesets, const std::string& config_file)
+{
+    graphics::generators::SurfacesGen generator(imagesets);
+    try {
+        std::istringstream iss;
+        iss.str(helpers::readToString(config_file));
+        cpptoml::parser parser{iss};
+        std::shared_ptr<cpptoml::table> config = parser.parse();
+        auto tarr = config->get_table_array("surface");
+        for (const auto& table : *tarr) {
+            auto position = table->get_array_of<double>("position");
+            auto rotate = table->get_array_of<double>("rotate");
+            auto imageset_name = table->get_as<std::string>("imageset");
+            auto tile_data = table->get_array_of<cpptoml::array>("tiles");
+
+            auto pos = glm::vec3((*position)[0], (*position)[1], (*position)[2]);
+            glm::mat4 matrix = glm::mat4(1);
+            matrix = glm::translate(matrix, pos);
+            matrix = glm::rotate(matrix, glm::radians(float((*rotate)[0])), glm::vec3(1, 0, 0));
+            matrix = glm::rotate(matrix, glm::radians(float((*rotate)[1])), glm::vec3(0, 1, 0));
+            matrix = glm::rotate(matrix, glm::radians(float((*rotate)[2])), glm::vec3(0, 0, 1));
+
+            generator.newSurface(entt::hashed_string{imageset_name->data()}, tile_data->size());
+            for (const auto& row_data : *tile_data) {
+                auto col_data = row_data->get_array_of<int64_t>();
+                generator.addRow<int64_t>(*col_data, [&matrix](auto vec){return matrix * vec;});
+            }
+        }
+        return generator.complete();
+    }
+    catch (const cpptoml::parse_exception& e) {
+        fatal("Parsing failed: {}", e.what());
+    }
+}
+
+void unloadLevel (std::vector<graphics::Surface>& surfaces)
+{
+    for (auto& surface : surfaces) {
+        surface.unload();
+    }
+    surfaces.clear();
+}
 
 graphics::Renderer::Renderer ()
 {
@@ -20,7 +68,7 @@ graphics::Renderer::Renderer ()
 
 graphics::Renderer::~Renderer ()
 {
-
+    unloadLevel(level);
 }
 
 void graphics::Renderer::init ()
@@ -64,6 +112,9 @@ void graphics::Renderer::init ()
 
     sprite_pool.init(spritepool_shader, imagesets.get("characters"_hs));
 
+    info("Loading level");
+    level = loadLevel(imagesets, "maps/level.toml");
+
     // Set OpenGL settings
     glEnable(GL_DEPTH_TEST);
     glDepthMask(GL_TRUE);
@@ -76,7 +127,6 @@ void graphics::Renderer::init ()
     glFrontFace(GL_CCW);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
     glEnable(GL_MULTISAMPLE);
-
 }
 
 void graphics::Renderer::windowChanged ()
@@ -121,24 +171,22 @@ void graphics::Renderer::render ()
 
     auto frustum = math::frustum(projection_view_matrix);
 
-    for (auto& handle : sprite_data) {
-        resources::MemoryBuffer& buffer = handle.mem_buffer<graphics::Sprite>();
-        buffer.count = 0;
-    }
-
     glClearColor(0, 0, 0, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
     glViewport(viewport.x, viewport.y, viewport.z, viewport.w);
 
-    // tiles_shader.use();
-    // u_tile_pv_matrix.set(projection_view_matrix);
-    // for (const auto& surface : level) {
-    //     surface.draw(u_tile_texture);
-    // }
+    tiles_shader.use();
+    u_tile_pv_matrix.set(projection_view_matrix);
+    for (const auto& surface : level) {
+        surface.draw(u_tile_texture);
+    }
 
-    // sprite_pool.update(spheres);
-    // spritepool_shader.use();
-    // u_spritepool_view_matrix.set(view_matrix);
-    // sprite_pool.render();
+    spritepool_shader.use();
+    u_spritepool_view_matrix.set(view_matrix);
+    for (auto& handle : sprite_data) {
+        resources::MemoryBuffer& buffer = handle.mem_buffer<graphics::Sprite>();
+        sprite_pool.render(reinterpret_cast<graphics::Sprite*>(buffer.data), buffer.count);
+        buffer.count = 0;
+    }
 }

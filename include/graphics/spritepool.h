@@ -23,9 +23,9 @@ public:
     ~SpritePool ();
 
     void init (const graphics::shader& spriteShader, int texture_unit);
-    void update (const std::vector<Sprite>& sprites);
+    void update (Sprite* const sprite_data, std::size_t num_sprites);
 
-    void render ();
+    void render (Sprite* const sprite_data, std::size_t num_sprites);
 
 private:
     std::vector<Sprite> sortedBuffer;

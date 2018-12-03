@@ -7,6 +7,9 @@
 #include <graphics/spritepool.h>
 #include <graphics/imagesets.h>
 
+#include <graphics/generators/surfaces.h>
+
+
 namespace graphics {
 
 class Renderer : public services::Renderer {
@@ -27,6 +30,7 @@ public:
 
 private:
     std::vector<resources::Handle> sprite_data;
+    std::vector<graphics::Surface> level;
 
     glm::ivec4 viewport;
     glm::mat4 projection_matrix;

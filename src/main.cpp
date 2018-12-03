@@ -31,8 +31,6 @@
 #include "graphics/spritepool.h"
 #include "graphics/renderer.h"
 
-#include "graphics/generators/surfaces.h"
-
 #include "ecs/systems/sprite_render.h"
 #include "ecs/systems/sprite_animation.h"
 #include "ecs/systems/physics_simulation.h"
@@ -159,49 +157,6 @@ void setupBuffers (const std::string& config_file)
     catch (const cpptoml::parse_exception& e) {
         fatal("Parsing failed: {}", e.what());
     }
-}
-
-std::vector<graphics::Surface> loadLevel (const graphics::Imagesets& imagesets, const std::string& config_file)
-{
-    graphics::generators::SurfacesGen generator(imagesets);
-    try {
-        std::istringstream iss;
-        iss.str(helpers::readToString(config_file));
-        cpptoml::parser parser{iss};
-        std::shared_ptr<cpptoml::table> config = parser.parse();
-        auto tarr = config->get_table_array("surface");
-        for (const auto& table : *tarr) {
-            auto position = table->get_array_of<double>("position");
-            auto rotate = table->get_array_of<double>("rotate");
-            auto imageset_name = table->get_as<std::string>("imageset");
-            auto tile_data = table->get_array_of<cpptoml::array>("tiles");
-
-            auto pos = glm::vec3((*position)[0], (*position)[1], (*position)[2]);
-            glm::mat4 matrix = glm::mat4(1);
-            matrix = glm::translate(matrix, pos);
-            matrix = glm::rotate(matrix, glm::radians(float((*rotate)[0])), glm::vec3(1, 0, 0));
-            matrix = glm::rotate(matrix, glm::radians(float((*rotate)[1])), glm::vec3(0, 1, 0));
-            matrix = glm::rotate(matrix, glm::radians(float((*rotate)[2])), glm::vec3(0, 0, 1));
-
-            generator.newSurface(entt::hashed_string{imageset_name->data()}, tile_data->size());
-            for (const auto& row_data : *tile_data) {
-                auto col_data = row_data->get_array_of<int64_t>();
-                generator.addRow<int64_t>(*col_data, [&matrix](auto vec){return matrix * vec;});
-            }
-        }
-        return generator.complete();
-    }
-    catch (const cpptoml::parse_exception& e) {
-        fatal("Parsing failed: {}", e.what());
-    }
-}
-
-void unloadLevel (std::vector<graphics::Surface>& surfaces)
-{
-    for (auto& surface : surfaces) {
-        surface.unload();
-    }
-    surfaces.clear();
 }
 
 struct Settings {
@@ -337,9 +292,6 @@ int main (int argc, char* argv[])
             sprite_animation_system,
             sprite_render_system,
         };
-
-        info("Loading level");
-        // auto level = loadLevel(imagesets, "maps/level.toml");
 
         info("Generating entities");
         {
