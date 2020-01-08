@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.10)
 
 # Project Configuration
-project(BloodFarm VERSION 1.0.0 LANGUAGES CXX C)
+project(BloodFarmers VERSION 1.0.0 LANGUAGES CXX C)
 
 # Detect compiler
 if ("${CMAKE_CXX_COMPILER_ID}" MATCHES "Clang")
@@ -72,7 +72,7 @@ set(SOURCES
     src/services/scene.cpp
 )
 
-add_executable(BloodFarm ${SOURCES} $<TARGET_OBJECTS:FastNoiseSIMD>)
+add_executable(BloodFarmers ${SOURCES} $<TARGET_OBJECTS:FastNoiseSIMD>)
 
 # Packaged dependencies
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${PROJECT_SOURCE_DIR}/cmake")
@@ -80,35 +80,35 @@ set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${PROJECT_SOURCE_DIR}/cmake")
 find_package(SDL2 2.0.10)
 if (SDL2_FOUND)
     include_directories(${SDL2_INCLUDE_DIR})
-    target_link_libraries(BloodFarm ${SDL2_LIBRARY})
+    target_link_libraries(BloodFarmers ${SDL2_LIBRARY})
 endif()
 
 find_package(GLEW REQUIRED)
 if (GLEW_FOUND)
     include_directories(${GLEW_INCLUDE_DIRS})
-    target_link_libraries(BloodFarm ${GLEW_LIBRARIES})
+    target_link_libraries(BloodFarmers ${GLEW_LIBRARIES})
 endif()
 
 set(OpenGL_GL_PREFERENCE GLVND)
 find_package(OpenGL REQUIRED)
 if (OPENGL_FOUND)
     include_directories(${OPENGL_INCLUDE_DIR})
-    target_link_libraries(BloodFarm ${OPENGL_LIBRARIES})
+    target_link_libraries(BloodFarmers ${OPENGL_LIBRARIES})
 endif()
 
 find_package(BULLET REQUIRED)
 if (BULLET_FOUND)
     include_directories(${BULLET_INCLUDE_DIRS})
-    target_link_libraries(BloodFarm ${BULLET_LIBRARIES})
+    target_link_libraries(BloodFarmers ${BULLET_LIBRARIES})
 endif()
 
 # Included dependencies
 
 add_subdirectory(deps/cpptoml)
 target_include_directories (cpptoml INTERFACE $<BUILD_INTERFACE:${CPPTOML_SOURCE_DIR}/include>)
-target_link_libraries(BloodFarm cpptoml)
+target_link_libraries(BloodFarmers cpptoml)
 
-target_include_directories(BloodFarm
+target_include_directories(BloodFarmers
     PRIVATE 
         # Project include files
         ${PROJECT_SOURCE_DIR}/include
@@ -129,9 +129,9 @@ target_include_directories(BloodFarm
 if(NOT CMAKE_BUILD_TYPE)
     set(CMAKE_BUILD_TYPE Debug)
 endif()
-target_compile_definitions(BloodFarm PUBLIC $<$<CONFIG:DEBUG>:DEBUG_BUILD>)
-target_compile_definitions(BloodFarm PUBLIC $<$<CONFIG:DEBUG>:SPDLOG_DEBUG_ON>)
-target_compile_definitions(BloodFarm PUBLIC $<$<CONFIG:DEBUG>:SPDLOG_TRACE_ON>)
+target_compile_definitions(BloodFarmers PUBLIC $<$<CONFIG:DEBUG>:DEBUG_BUILD>)
+target_compile_definitions(BloodFarmers PUBLIC $<$<CONFIG:DEBUG>:SPDLOG_DEBUG_ON>)
+target_compile_definitions(BloodFarmers PUBLIC $<$<CONFIG:DEBUG>:SPDLOG_TRACE_ON>)
 
 
 set(SETTINGS_ORGANIZATION "Dan Kersten")
@@ -148,12 +148,12 @@ message("*")
 option(USE_ASAN "Use address sanitizer by adding -fsanitize=address -fno-omit-frame-pointer flags" OFF)
 
 if(USE_ASAN)
-    target_compile_options(BloodFarm PUBLIC $<$<AND:$<CONFIG:Debug>,$<NOT:$<CXX_COMPILER_ID:MSVC>>>:-fsanitize=address -fno-omit-frame-pointer>)
-    target_link_libraries(BloodFarm PUBLIC $<$<AND:$<CONFIG:Debug>,$<NOT:$<CXX_COMPILER_ID:MSVC>>>:-fsanitize=address -fno-omit-frame-pointer>)
+    target_compile_options(BloodFarmers PUBLIC $<$<AND:$<CONFIG:Debug>,$<NOT:$<CXX_COMPILER_ID:MSVC>>>:-fsanitize=address -fno-omit-frame-pointer>)
+    target_link_libraries(BloodFarmers PUBLIC $<$<AND:$<CONFIG:Debug>,$<NOT:$<CXX_COMPILER_ID:MSVC>>>:-fsanitize=address -fno-omit-frame-pointer>)
 endif()
 
 target_compile_options(
-    BloodFarm
+    BloodFarmers
     PUBLIC $<$<AND:$<CONFIG:Debug>,$<NOT:$<BOOL:USING_MSVC>>>:-O0 -g>
     # it seems that -O3 ruins a bit the performance when using clang ...
     PUBLIC $<$<AND:$<CONFIG:Release>,$<BOOL:USING_CLANG>>:-O2 -flto=thin>
@@ -163,18 +163,18 @@ target_compile_options(
 
 # Platform specific compile options
 if(USING_MSVC)
-    target_compile_options(BloodFarm PUBLIC /arch:SSE4.1 /fp:fast)
+    target_compile_options(BloodFarmers PUBLIC /arch:SSE4.1 /fp:fast)
     target_compile_options(FastNoiseSIMD PUBLIC /arch:SSE4.1 /arch:AVX2 /fp:fast)
 else()
-    target_compile_options(BloodFarm PUBLIC -msse4.1 -mfma)
+    target_compile_options(BloodFarmers PUBLIC -msse4.1 -mfma)
     target_compile_options(FastNoiseSIMD PUBLIC -msse4.1 -mavx2 -mfma)
     if(USING_CLANG)
-       target_compile_options(BloodFarm PUBLIC -ffp-contract=fast)
+       target_compile_options(BloodFarmers PUBLIC -ffp-contract=fast)
        target_compile_options(FastNoiseSIMD PUBLIC -ffp-contract=fast)
     endif()
     if(APPLE)
         # Foundation and IOKit are needed by PhysicsFS on OSX
-        target_link_libraries(BloodFarm
+        target_link_libraries(BloodFarmers
             "-framework Foundation"
             "-framework IOKit"
             "-framework OpenGL"
@@ -182,8 +182,8 @@ else()
     endif()
 endif()
 
-#target_compile_options(BloodFarm PUBLIC -Werror)
-target_compile_features(BloodFarm PRIVATE cxx_std_17)
+#target_compile_options(BloodFarmers PUBLIC -Werror)
+target_compile_features(BloodFarmers PRIVATE cxx_std_17)
 
 target_compile_features(FastNoiseSIMD PRIVATE cxx_std_11)
 
