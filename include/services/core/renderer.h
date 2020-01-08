@@ -6,6 +6,7 @@
 #include <utility>
 
 #include <util/helpers.h>
+#include <util/logging.h>
 
 namespace resources {
 

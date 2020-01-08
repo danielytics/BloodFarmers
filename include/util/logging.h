@@ -39,8 +39,8 @@ private:
     const std::string name;
     const Clock::time_point start_time;
 };
-#define trace_fn(...) tracing(__FUNCTION__)
-#define trace_block(block) tracing(std::string(__FUNCTION__) + std::string("/") + block)
+#define trace_fn(...) tracing trace_function_object__{__FUNCTION__}
+#define trace_block(block) tracing trace_block_object_{std::string(__FUNCTION__) + std::string("/") + block}
 #else
 class tracing {
 public:

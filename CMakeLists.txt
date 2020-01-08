@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.12)
+cmake_minimum_required(VERSION 3.10)
 
 # Project Configuration
 project(BloodFarm VERSION 1.0.0 LANGUAGES CXX C)
@@ -43,7 +43,6 @@ set(PHYSICSFS_SOURCES
     deps/physfs/src/physfs_archiver_zip.c
     deps/physfs/src/physfs_byteorder.c
     deps/physfs/src/physfs_miniz.h
-    deps/physfs/src/physfs_platform_apple.m
     deps/physfs/src/physfs_platform_haiku.cpp
     deps/physfs/src/physfs_platform_os2.c
     deps/physfs/src/physfs_platform_posix.c
@@ -53,6 +52,9 @@ set(PHYSICSFS_SOURCES
     deps/physfs/src/physfs_platform_winrt.cpp
     deps/physfs/src/physfs_unicode.c
 )
+if(APPLE)
+    list(APPEND PHYSICS_FS_SOURCES deps/physfs/src/physfs_platform_apple.m)
+endif()
 
 # Sources
 set(SOURCES
@@ -67,6 +69,7 @@ set(SOURCES
     src/util/helpers.cpp
     src/services/core/resources.cpp
     src/services/core/physics.cpp
+    src/services/scene.cpp
 )
 
 add_executable(BloodFarm ${SOURCES} $<TARGET_OBJECTS:FastNoiseSIMD>)
@@ -74,7 +77,7 @@ add_executable(BloodFarm ${SOURCES} $<TARGET_OBJECTS:FastNoiseSIMD>)
 # Packaged dependencies
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${PROJECT_SOURCE_DIR}/cmake")
 
-find_package(SDL2 2.0.9)
+find_package(SDL2 2.0.10)
 if (SDL2_FOUND)
     include_directories(${SDL2_INCLUDE_DIR})
     target_link_libraries(BloodFarm ${SDL2_LIBRARY})
@@ -85,11 +88,20 @@ if (GLEW_FOUND)
     include_directories(${GLEW_INCLUDE_DIRS})
     target_link_libraries(BloodFarm ${GLEW_LIBRARIES})
 endif()
+
+set(OpenGL_GL_PREFERENCE GLVND)
+find_package(OpenGL REQUIRED)
+if (OPENGL_FOUND)
+    include_directories(${OPENGL_INCLUDE_DIR})
+    target_link_libraries(BloodFarm ${OPENGL_LIBRARIES})
+endif()
+
 find_package(BULLET REQUIRED)
 if (BULLET_FOUND)
     include_directories(${BULLET_INCLUDE_DIRS})
     target_link_libraries(BloodFarm ${BULLET_LIBRARIES})
 endif()
+
 # Included dependencies
 
 add_subdirectory(deps/cpptoml)
@@ -107,7 +119,7 @@ target_include_directories(BloodFarm
         # Include header-only dependencies
         ${PROJECT_SOURCE_DIR}/deps/stb
         ${PROJECT_SOURCE_DIR}/deps/spdlog/include
-        ${PROJECT_SOURCE_DIR}/deps/EnTT/src
+        ${PROJECT_SOURCE_DIR}/deps/entt/src
         ${PROJECT_SOURCE_DIR}/deps/glm
         ${PROJECT_SOURCE_DIR}/deps/semimap
         ${PROJECT_SOURCE_DIR}/deps/physfs-hpp/include 
@@ -160,14 +172,14 @@ else()
        target_compile_options(BloodFarm PUBLIC -ffp-contract=fast)
        target_compile_options(FastNoiseSIMD PUBLIC -ffp-contract=fast)
     endif()
-endif()
-if(APPLE)
-    # Foundation and IOKit are needed by PhysicsFS on OSX
-    target_link_libraries(BloodFarm
-        "-framework Foundation"
-        "-framework IOKit"
-        "-framework OpenGL"
-    )
+    if(APPLE)
+        # Foundation and IOKit are needed by PhysicsFS on OSX
+        target_link_libraries(BloodFarm
+            "-framework Foundation"
+            "-framework IOKit"
+            "-framework OpenGL"
+        )
+    endif()
 endif()
 
 #target_compile_options(BloodFarm PUBLIC -Werror)

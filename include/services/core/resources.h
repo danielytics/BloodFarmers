@@ -381,9 +381,9 @@ template <typename... Args>
 inline void resources::Buffer<T>::emplace_back (Args&&... args) {
     if constexpr (bounds_checking_endabled) {
         if (memory_buffer->count >= capacity) {
-        fatal("Memory buffer ({}) out of space: size {}, capacity {}",
-            services::locator::resources::ref().name(memory_buffer->data),
-            memory_buffer->count, memory_buffer->capacity);
+            fatal("Memory buffer ({}) out of space: size {}, capacity {}",
+                services::locator::resources::ref().name(memory_buffer->data),
+                memory_buffer->count, memory_buffer->capacity);
         }
     }
     data[memory_buffer->count++] = T{std::move(args)...};
@@ -393,9 +393,9 @@ template<typename T>
 inline void resources::Buffer<T>::push_back (T&& item) {
     if constexpr (bounds_checking_endabled) {
         if (memory_buffer->count >= capacity) {
-        fatal("Memory buffer ({}) out of space: size {}, capacity {}",
-            services::locator::resources::ref().name(memory_buffer->data),
-            memory_buffer->count, memory_buffer->capacity);
+            fatal("Memory buffer ({}) out of space: size {}, capacity {}",
+                services::locator::resources::ref().name(memory_buffer->data),
+                memory_buffer->count, memory_buffer->capacity);
         }
     }
     data[memory_buffer->count++] = std::move(item);

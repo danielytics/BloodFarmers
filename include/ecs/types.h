@@ -5,7 +5,7 @@
 
 namespace ecs {
 
-using registry_type = entt::registry<>;
+using registry_type = entt::registry;
 using entity = registry_type::entity_type;
 
 }

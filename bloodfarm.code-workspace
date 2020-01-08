@@ -1,0 +1,24 @@
+{
+	"folders": [
+		{
+			"path": "."
+		}
+	],
+	"settings": {
+		"files.associations": {
+			"*.ipp": "cpp",
+			"*.tcc": "cpp",
+			"bitset": "cpp",
+			"functional": "cpp",
+			"istream": "cpp",
+			"optional": "cpp",
+			"regex": "cpp",
+			"valarray": "cpp",
+			"variant": "cpp",
+			"mutex": "cpp",
+			"ratio": "cpp",
+			"streambuf": "cpp",
+			"*.def": "cpp"
+		}
+	}
+}

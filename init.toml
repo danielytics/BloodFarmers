@@ -3,7 +3,7 @@ resolution = "720p"
 fullscreen = false
 vsync = true
 fsaa = "4x"
-debug = true
+debug = false
 
 [telemetry]
 logging = "info"

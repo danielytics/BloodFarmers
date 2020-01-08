@@ -73,6 +73,7 @@ graphics::Renderer::~Renderer ()
 
 void graphics::Renderer::init ()
 {
+    trace_fn();
 #ifdef DEBUG_BUILD
     int max_tex_layers, max_combined_tex, max_vert_tex, max_geom_tex, max_frag_tex, max_tex_size;
     glGetIntegerv(GL_MAX_ARRAY_TEXTURE_LAYERS, &max_tex_layers);
@@ -131,6 +132,7 @@ void graphics::Renderer::init ()
 
 void graphics::Renderer::windowChanged ()
 {
+    trace_fn();
     auto field_of_view = services::locator::config<"renderer.field-of-view"_hs, float>();
     auto near_distance = services::locator::config<"renderer.near-distance"_hs, float>();
     auto far_distance = services::locator::config<"renderer.far-distance"_hs, float>();
@@ -166,6 +168,7 @@ void graphics::Renderer::submit (const RenderMode render_mode, const Type render
 
 void graphics::Renderer::render ()
 {
+    trace_fn();
     glm::mat4 view_matrix = services::locator::camera::ref().view();
     glm::mat4 projection_view_matrix = projection_matrix * view_matrix;
 
@@ -176,17 +179,25 @@ void graphics::Renderer::render ()
 
     glViewport(viewport.x, viewport.y, viewport.z, viewport.w);
 
-    tiles_shader.use();
-    u_tile_pv_matrix.set(projection_view_matrix);
-    for (const auto& surface : level) {
-        surface.draw(u_tile_texture);
+    {
+        trace_block("draw surfaces");
+        tiles_shader.use();
+        u_tile_pv_matrix.set(projection_view_matrix);
+        for (const auto& surface : level) {
+            trace_block("draw surface");
+            surface.draw(u_tile_texture);
+        }
     }
 
-    spritepool_shader.use();
-    u_spritepool_view_matrix.set(view_matrix);
-    for (auto& handle : sprite_data) {
-        resources::MemoryBuffer& buffer = handle.mem_buffer<graphics::Sprite>();
-        sprite_pool.render(reinterpret_cast<graphics::Sprite*>(buffer.data), buffer.count);
-        buffer.count = 0;
+    {
+        trace_block("draw sprite pools");
+        spritepool_shader.use();
+        u_spritepool_view_matrix.set(view_matrix);
+        for (auto& handle : sprite_data) {
+            trace_block("draw sprites");
+            resources::MemoryBuffer& buffer = handle.mem_buffer<graphics::Sprite>();
+            sprite_pool.render(reinterpret_cast<graphics::Sprite*>(buffer.data), buffer.count);
+            buffer.count = 0;
+        }
     }
 }

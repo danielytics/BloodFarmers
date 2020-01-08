@@ -201,6 +201,7 @@ void initServices (Args&&... args) {
     null_fn(init(std::forward<Args>(args))...);
 }
 
+
 int main (int argc, char* argv[])
 {
     Settings settings = readSettings(argc, argv);
@@ -240,6 +241,8 @@ int main (int argc, char* argv[])
         SDL_GLContext context = SDL_GL_CreateContext(window.get());
         on_exit_scope = [&context](){ SDL_GL_DeleteContext(context); };
         info("Created window with OpenGL {}", glGetString(GL_VERSION));
+
+	SDL_GL_SetSwapInterval(0);
 
         // Load OpenGL 3+ functions
         glewExperimental = GL_TRUE;
@@ -306,6 +309,7 @@ int main (int argc, char* argv[])
                 registry.assign<ecs::components::position>(entity, position);
                 registry.assign<ecs::components::sprite>(entity, base_image);
                 registry.assign<ecs::components::bitmap_animation>(entity, base_image, 3.f, 0.2f, 0.f, 0);
+                registry.assign<ecs::components::physics_body>(entity);
             }
         }
 
@@ -321,9 +325,9 @@ int main (int argc, char* argv[])
         long total_frames = 0;
         bool buttons_dirty = false;
 
-        Uint8 current_button_states[SDL_CONTROLLER_BUTTON_MAX];
-        Uint8 prev_button_states[SDL_CONTROLLER_BUTTON_MAX];
-        float axis_values[SDL_CONTROLLER_AXIS_MAX];
+        Uint8 current_button_states[SDL_CONTROLLER_BUTTON_MAX] = {};
+        Uint8 prev_button_states[SDL_CONTROLLER_BUTTON_MAX] = {};
+        float axis_values[SDL_CONTROLLER_AXIS_MAX] = {};
 
         graphics::camera& camera = services::locator::camera::ref();
 
@@ -403,6 +407,7 @@ int main (int argc, char* argv[])
             camera.orient(axis_values[SDL_CONTROLLER_AXIS_RIGHTX] * 5.0f, -axis_values[SDL_CONTROLLER_AXIS_RIGHTY] * 5.0f);
 
             if (current_button_states[SDL_CONTROLLER_BUTTON_RIGHTSHOULDER] && !prev_button_states[SDL_CONTROLLER_BUTTON_RIGHTSHOULDER]) {
+                info("Creating new physics enabled entity {} {}", current_button_states[SDL_CONTROLLER_BUTTON_RIGHTSHOULDER], prev_button_states[SDL_CONTROLLER_BUTTON_RIGHTSHOULDER]);
                 auto entity = registry.create();
                 registry.assign<ecs::components::position>(entity, glm::vec3(0, 0, 0));
                 registry.assign<ecs::components::sprite>(entity, 0.f);

@@ -26,7 +26,7 @@ public:
         switch (notification) {
             case ecs::EntityNotification::ADDED:
                 for (auto entity : entities) {
-                    info("Entity {} added to physics system", entity);
+                    info("Entity {} added to physics system", to_integer(entity));
                     auto position = registry.get<ecs::components::position>(entity);
                     physics->addBody(entity,
                             services::Physics::Body{position.position + glm::vec3(0, 1.0f, 0), 1.0f, 0.5f, 1.0f},
@@ -35,7 +35,7 @@ public:
                 break;
             case ecs::EntityNotification::REMOVED:
                  for (auto entity : entities) {
-                    info("Entity {} removed from physics system", entity);
+                    info("Entity {} removed from physics system", to_integer(entity));
                     physics->removeBody(entity);
                 }
                 break;

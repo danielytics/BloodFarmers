@@ -4,6 +4,7 @@
 #include <vector>
 #include <algorithm>
 #include <type_traits>
+#include <utility>
 
 #include <ecs/types.h>
 
@@ -91,7 +92,7 @@ public:
             // findAddedAndRemovedEntities(std::move(updatedEntities), added, removed);
         } else {
             std::vector<entity> updatedEntities;
-            registry.view<Components...>().each([this,&updatedEntities](auto entity, Components&... args){
+            registry.view<Components...>().each([this,&updatedEntities](ecs::entity entity, auto&&... args){
                 addLiveEntity(updatedEntities, entity);
                 static_cast<This*>(this)->update(entity, args...);
             });

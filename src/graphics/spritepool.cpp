@@ -8,6 +8,8 @@
 
 #include "util/logging.h"
 
+#include <xmmintrin.h>
+
 
 graphics::SpritePool::SpritePool ()
     : visibleSprites(unsigned(-1))
